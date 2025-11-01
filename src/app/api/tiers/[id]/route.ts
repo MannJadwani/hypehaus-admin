@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { TierUpdateSchema } from '@/lib/validation';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
-export async function PATCH(req: Request, context: Promise<Params>) {
+export async function PATCH(req: Request, { params }: Params) {
   try {
-    const { params } = await context;
-    const { id } = params;
+    const { id } = await params;
     const json = await req.json();
     const parsed = TierUpdateSchema.safeParse(json);
     if (!parsed.success) {
@@ -32,9 +31,8 @@ export async function PATCH(req: Request, context: Promise<Params>) {
   }
 }
 
-export async function DELETE(_req: Request, context: Promise<Params>) {
-  const { params } = await context;
-  const { id } = params;
+export async function DELETE(_req: Request, { params }: Params) {
+  const { id } = await params;
   const { error } = await supabaseAdmin.from('ticket_tiers').delete().eq('id', id);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

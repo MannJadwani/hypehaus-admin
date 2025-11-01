@@ -2,11 +2,10 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { ImageCreateSchema } from '@/lib/validation';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: Request, context: Promise<Params>) {
-  const { params } = await context;
-  const { id: eventId } = params;
+export async function GET(_req: Request, { params }: Params) {
+  const { id: eventId } = await params;
   const { data, error } = await supabaseAdmin
     .from('event_images')
     .select('*')
@@ -18,10 +17,9 @@ export async function GET(_req: Request, context: Promise<Params>) {
   return NextResponse.json({ images: data ?? [] });
 }
 
-export async function POST(req: Request, context: Promise<Params>) {
+export async function POST(req: Request, { params }: Params) {
   try {
-    const { params } = await context;
-    const { id: eventId } = params;
+    const { id: eventId } = await params;
     const json = await req.json();
     const parsed = ImageCreateSchema.safeParse(json);
     if (!parsed.success) {

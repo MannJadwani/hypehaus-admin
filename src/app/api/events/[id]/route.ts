@@ -3,10 +3,9 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { EventUpdateSchema } from '@/lib/validation';
 import React from 'react';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: Request, context: Promise<Params>) {
-  const { params } = await context;
+export async function GET(_req: Request, { params }: Params) {
   const { id } = await params;
   const { data: event, error } = await supabaseAdmin.from('events').select('*').eq('id', id).single();
   if (error || !event) {
@@ -28,10 +27,9 @@ export async function GET(_req: Request, context: Promise<Params>) {
   return NextResponse.json({ event, tiers: tiers ?? [], images: images ?? [] });
 }
 
-export async function PATCH(req: Request, context: Promise<Params>) {
+export async function PATCH(req: Request, { params }: Params) {
   try {
-    const { params } = await context;
-    const { id } = params;
+    const { id } = await params;
     const json = await req.json();
     const parsed = EventUpdateSchema.safeParse(json);
     if (!parsed.success) {
@@ -56,9 +54,8 @@ export async function PATCH(req: Request, context: Promise<Params>) {
   }
 }
 
-export async function DELETE(_req: Request, context: Promise<Params>) {
-  const { params } = await context;
-  const { id } = params;
+export async function DELETE(_req: Request, { params }: Params) {
+  const { id } = await params;
   const { error } = await supabaseAdmin.from('events').delete().eq('id', id);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

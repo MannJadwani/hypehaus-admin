@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { EventUpdateSchema, type EventUpdateInput, TierCreateSchema, type TierCreateInput, ImageCreateSchema, type ImageCreateInput } from '@/lib/validation';
+import { z } from 'zod';
+import { EventUpdateSchema, type EventUpdateInput, TierCreateSchema, ImageCreateSchema } from '@/lib/validation';
 import Link from 'next/link';
 
 type Tier = {
@@ -59,12 +60,12 @@ export default function EditEventPage() {
     formState: { errors, isSubmitting },
   } = useForm<EventUpdateInput>({ resolver: zodResolver(EventUpdateSchema) });
 
-  const tierForm = useForm<TierCreateInput>({
+  const tierForm = useForm<z.input<typeof TierCreateSchema>>({
     resolver: zodResolver(TierCreateSchema),
     defaultValues: { name: '', price_cents: 0, currency: 'INR', total_quantity: 0 },
   });
 
-  const imageForm = useForm<ImageCreateInput>({
+  const imageForm = useForm<z.input<typeof ImageCreateSchema>>({
     resolver: zodResolver(ImageCreateSchema),
     defaultValues: { url: '', position: undefined },
   });
@@ -121,7 +122,7 @@ export default function EditEventPage() {
     await load();
   };
 
-  const addTier = async (values: TierCreateInput) => {
+  const addTier = async (values: z.input<typeof TierCreateSchema>) => {
     const res = await fetch(`/api/events/${eventId}/tiers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -138,7 +139,7 @@ export default function EditEventPage() {
     await load();
   };
 
-  const addImage = async (values: ImageCreateInput) => {
+  const addImage = async (values: z.input<typeof ImageCreateSchema>) => {
     const res = await fetch(`/api/events/${eventId}/images`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -184,7 +185,7 @@ export default function EditEventPage() {
     <div className="max-w-4xl">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">Edit Event</h1>
-        <Link href="/events" className="text-sm text-[var(--hh-text-secondary)] hover:text-[var(--hh-text)]">Back</Link>
+        <Link href="/events" className="text-sm text-(--hh-text-secondary) hover:text-(--hh-text)">Back</Link>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-4 mb-8 hh-card p-4">
