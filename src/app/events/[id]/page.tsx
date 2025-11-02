@@ -151,6 +151,33 @@ export default function EditEventPage() {
     }
   };
 
+  const uploadImage = async (file: File, position?: number) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('event_id', eventId);
+    if (typeof position === 'number') fd.append('position', String(position));
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    if (res.ok) {
+      await load();
+    }
+  };
+
+  const uploadHero = async (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('event_id', eventId);
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    if (res.ok) {
+      const data = await res.json();
+      await fetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hero_image_url: data.url }),
+      });
+      await load();
+    }
+  };
+
   const moveImage = async (index: number, direction: -1 | 1) => {
     const newIndex = index + direction;
     if (newIndex < 0 || newIndex >= images.length) return;
@@ -209,8 +236,22 @@ export default function EditEventPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Hero Image URL</label>
-            <input className="w-full hh-input px-3 py-2 text-sm" {...register('hero_image_url')} />
+            <label className="block text-sm font-medium mb-1">Hero Image</label>
+            <div className="space-y-2">
+              <input
+                type="file"
+                accept="image/*"
+                className="w-full hh-input px-3 py-2 text-sm"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadHero(f);
+                }}
+              />
+              <input className="w-full hh-input px-3 py-2 text-sm" {...register('hero_image_url')} />
+              {event.hero_image_url ? (
+                <img src={event.hero_image_url} alt="Hero preview" className="mt-1 h-28 w-full object-cover rounded-md border border-(--hh-border)" />
+              ) : null}
+            </div>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -318,6 +359,20 @@ export default function EditEventPage() {
             <input type="number" placeholder="Position" className="hh-input px-3 py-2 text-sm" {...imageForm.register('position', { valueAsNumber: true })} />
             <button className="hh-btn-primary px-3 py-2 text-sm col-span-3">Add Image</button>
           </form>
+
+          <div className="mt-3 grid grid-cols-3 gap-3 items-center">
+            <input type="file" accept="image/*" className="col-span-2 hh-input px-3 py-2 text-sm"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadImage(f);
+              }}
+            />
+            <button onClick={(e) => {
+              e.preventDefault();
+              const input = (e.currentTarget.previousSibling as HTMLInputElement);
+              input?.click?.();
+            }} className="hh-btn-secondary px-3 py-2 text-sm">Upload</button>
+          </div>
         </section>
       </div>
     </div>

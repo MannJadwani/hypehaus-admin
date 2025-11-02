@@ -12,7 +12,7 @@ const categories = ['Music', 'Tech', 'Comedy', 'Art', 'Sports'] as const;
 export default function NewEventPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<EventCreateInput>({
+  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<EventCreateInput>({
     resolver: zodResolver(EventCreateSchema),
     defaultValues: {
       title: '',
@@ -31,6 +31,18 @@ export default function NewEventPage() {
       status: 'draft',
     },
   });
+
+  const heroUrl = watch('hero_image_url');
+
+  const uploadHero = async (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    if (res.ok) {
+      const data = await res.json();
+      setValue('hero_image_url', data.url, { shouldValidate: true, shouldDirty: true });
+    }
+  };
 
   const onSubmit = async (values: EventCreateInput) => {
     setError(null);
@@ -53,7 +65,7 @@ export default function NewEventPage() {
       <div className="w-full max-w-3xl">
         <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">New Event</h1>
-        <Link href="/events" className="text-sm text-[var(--hh-text-secondary)] hover:text-[var(--hh-text)]">Back</Link>
+          <Link href="/events" className="text-sm text-(--hh-text-secondary) hover:text-(--hh-text)">Back</Link>
         </div>
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
       <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-4 hh-card p-4">
@@ -77,8 +89,22 @@ export default function NewEventPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Hero Image URL</label>
-            <input className="w-full hh-input px-3 py-2 text-sm" {...register('hero_image_url')} />
+            <label className="block text-sm font-medium mb-1">Hero Image</label>
+            <div className="space-y-2">
+              <input
+                type="file"
+                accept="image/*"
+                className="w-full hh-input px-3 py-2 text-sm"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadHero(f);
+                }}
+              />
+              <input readOnly className="w-full hh-input px-3 py-2 text-sm" placeholder="Uploaded URL will appear here" {...register('hero_image_url')} />
+              {heroUrl ? (
+                <img src={heroUrl} alt="Hero preview" className="mt-1 h-28 w-full object-cover rounded-md border border-(--hh-border)" />
+              ) : null}
+            </div>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
