@@ -35,6 +35,7 @@ export default function Sidebar() {
         <NavLink href="/" label="Dashboard" />
         <NavLink href="/events" label="Events" />
         <NavLink href="/events/new" label="Create Event" />
+        <NavLink href="/scan" label="Scan Tickets" />
       </nav>
       <div className="p-3 border-t border-[var(--hh-border)]">
         <button onClick={logout} className="w-full hh-btn-secondary text-sm">Logout</button>

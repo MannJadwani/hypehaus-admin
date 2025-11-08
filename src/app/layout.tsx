@@ -40,7 +40,7 @@ export default async function RootLayout({
         <div className="flex min-h-screen">
           {isAuthed ? <Sidebar /> : null}
           <main className="flex-1 px-6 py-6">
-            {children}
+        {children}
           </main>
         </div>
       </body>
