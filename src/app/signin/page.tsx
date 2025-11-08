@@ -30,8 +30,8 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center">
-      <div className="w-full max-w-sm hh-card p-6 shadow-sm">
+    <div className="min-h-[70vh] flex items-center justify-center px-4">
+      <div className="w-full max-w-sm hh-card p-4 md:p-6 shadow-sm">
         <h1 className="text-xl font-semibold mb-4">Admin Sign In</h1>
         {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

@@ -210,12 +210,12 @@ export default function EditEventPage() {
 
   return (
     <div className="max-w-4xl">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold">Edit Event</h1>
-        <Link href="/events" className="text-sm text-(--hh-text-secondary) hover:text-(--hh-text)">Back</Link>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 md:mb-6">
+        <h1 className="text-xl md:text-2xl font-semibold text-[var(--hh-text)]">Edit Event</h1>
+        <Link href="/events" className="text-sm text-[var(--hh-text-secondary)] hover:text-[var(--hh-text)] w-full sm:w-auto text-center sm:text-left">Back</Link>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-4 mb-8 hh-card p-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-4 mb-6 md:mb-8 hh-card p-4 md:p-6">
         <div>
           <label className="block text-sm font-medium mb-1">Title</label>
           <input className="w-full hh-input px-3 py-2 text-sm" {...register('title')} />
@@ -306,15 +306,15 @@ export default function EditEventPage() {
             </select>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button type="submit" disabled={isSubmitting} className="hh-btn-primary px-4 py-2 text-sm disabled:opacity-50">Save</button>
-          <Link href="/events" className="hh-btn-secondary px-4 py-2 text-sm">Back</Link>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button type="submit" disabled={isSubmitting} className="hh-btn-primary px-4 py-2 text-sm disabled:opacity-50 w-full sm:w-auto">Save</button>
+          <Link href="/events" className="hh-btn-secondary px-4 py-2 text-sm w-full sm:w-auto text-center">Back</Link>
         </div>
       </form>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
         <section>
-          <h2 className="text-lg font-semibold mb-2">Ticket Tiers</h2>
+          <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 text-[var(--hh-text)]">Ticket Tiers</h2>
           <div className="space-y-2 mb-4">
             {tiers.map((t) => (
               <div key={t.id} className="flex items-center justify-between hh-card p-3">
@@ -327,17 +327,17 @@ export default function EditEventPage() {
             ))}
             {tiers.length === 0 && <p className="text-sm text-gray-600">No tiers yet.</p>}
           </div>
-          <form onSubmit={tierForm.handleSubmit(addTier)} className="grid grid-cols-2 gap-3">
-            <input placeholder="Name" className="hh-input px-3 py-2 text-sm col-span-2" {...tierForm.register('name')} />
+          <form onSubmit={tierForm.handleSubmit(addTier)} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input placeholder="Name" className="hh-input px-3 py-2 text-sm col-span-1 sm:col-span-2" {...tierForm.register('name')} />
             <input type="number" placeholder="Price (cents)" className="hh-input px-3 py-2 text-sm" {...tierForm.register('price_cents', { valueAsNumber: true })} />
             <input placeholder="Currency" className="hh-input px-3 py-2 text-sm" {...tierForm.register('currency')} />
             <input type="number" placeholder="Total Qty" className="hh-input px-3 py-2 text-sm" {...tierForm.register('total_quantity', { valueAsNumber: true })} />
-            <button className="hh-btn-primary px-3 py-2 text-sm col-span-2">Add Tier</button>
+            <button className="hh-btn-primary px-3 py-2 text-sm col-span-1 sm:col-span-2 w-full sm:w-auto">Add Tier</button>
           </form>
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold mb-2">Images</h2>
+          <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 text-[var(--hh-text)]">Images</h2>
           <div className="space-y-2 mb-4">
             {images.map((img, idx) => (
               <div key={img.id} className="flex items-center justify-between hh-card p-3">
@@ -354,14 +354,14 @@ export default function EditEventPage() {
             ))}
             {images.length === 0 && <p className="text-sm text-gray-600">No images yet.</p>}
           </div>
-          <form onSubmit={imageForm.handleSubmit(addImage)} className="grid grid-cols-3 gap-3">
-            <input placeholder="Image URL" className="hh-input px-3 py-2 text-sm col-span-2" {...imageForm.register('url')} />
+          <form onSubmit={imageForm.handleSubmit(addImage)} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input placeholder="Image URL" className="hh-input px-3 py-2 text-sm col-span-1 sm:col-span-2" {...imageForm.register('url')} />
             <input type="number" placeholder="Position" className="hh-input px-3 py-2 text-sm" {...imageForm.register('position', { valueAsNumber: true })} />
-            <button className="hh-btn-primary px-3 py-2 text-sm col-span-3">Add Image</button>
+            <button className="hh-btn-primary px-3 py-2 text-sm col-span-1 sm:col-span-3 w-full sm:w-auto">Add Image</button>
           </form>
 
-          <div className="mt-3 grid grid-cols-3 gap-3 items-center">
-            <input type="file" accept="image/*" className="col-span-2 hh-input px-3 py-2 text-sm"
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+            <input type="file" accept="image/*" className="col-span-1 sm:col-span-2 hh-input px-3 py-2 text-sm"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) uploadImage(f);

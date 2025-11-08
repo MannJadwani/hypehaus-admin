@@ -61,14 +61,14 @@ export default function NewEventPage() {
   };
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center">
-      <div className="w-full max-w-3xl">
-        <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold">New Event</h1>
-          <Link href="/events" className="text-sm text-(--hh-text-secondary) hover:text-(--hh-text)">Back</Link>
+    <div className="min-h-[70vh]">
+      <div className="w-full max-w-3xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 md:mb-6">
+        <h1 className="text-xl md:text-2xl font-semibold text-[var(--hh-text)]">New Event</h1>
+          <Link href="/events" className="text-sm text-[var(--hh-text-secondary)] hover:text-[var(--hh-text)] w-full sm:w-auto text-center sm:text-left">Back</Link>
         </div>
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-4 hh-card p-4">
+      {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-4 hh-card p-4 md:p-6">
         <div>
           <label className="block text-sm font-medium mb-1">Title</label>
           <input className="w-full hh-input px-3 py-2 text-sm" {...register('title')} />
@@ -159,9 +159,9 @@ export default function NewEventPage() {
             </select>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button type="submit" disabled={isSubmitting} className="hh-btn-primary px-4 py-2 text-sm disabled:opacity-50">Create</button>
-          <Link href="/events" className="hh-btn-secondary px-4 py-2 text-sm">Cancel</Link>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button type="submit" disabled={isSubmitting} className="hh-btn-primary px-4 py-2 text-sm disabled:opacity-50 w-full sm:w-auto">Create</button>
+          <Link href="/events" className="hh-btn-secondary px-4 py-2 text-sm w-full sm:w-auto text-center">Cancel</Link>
         </div>
       </form>
       </div>
