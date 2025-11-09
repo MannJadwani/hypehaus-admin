@@ -3,14 +3,29 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { EventCreateSchema } from '@/lib/validation';
 
 export async function GET() {
-  const { data, error } = await supabaseAdmin
+  // Fetch events
+  const { data: events, error } = await supabaseAdmin
     .from('events')
     .select('*')
     .order('created_at', { ascending: false });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ events: data ?? [] });
+
+  // Fetch cab-request counts per event (orders with requested_cab=true)
+  const { data: cabOrders } = await supabaseAdmin
+    .from('orders')
+    .select('event_id, requested_cab')
+    .eq('requested_cab', true);
+
+  const map: Record<string, number> = {};
+  for (const row of cabOrders ?? []) {
+    if (!row.event_id) continue;
+    map[row.event_id] = (map[row.event_id] ?? 0) + 1;
+  }
+
+  const withCounts = (events ?? []).map((e: any) => ({ ...e, cab_opt_in_count: map[e.id] ?? 0 }));
+  return NextResponse.json({ events: withCounts });
 }
 
 export async function POST(req: Request) {

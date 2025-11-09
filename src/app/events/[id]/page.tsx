@@ -212,7 +212,10 @@ export default function EditEventPage() {
     <div className="max-w-4xl">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 md:mb-6">
         <h1 className="text-xl md:text-2xl font-semibold text-[var(--hh-text)]">Edit Event</h1>
-        <Link href="/events" className="text-sm text-[var(--hh-text-secondary)] hover:text-[var(--hh-text)] w-full sm:w-auto text-center sm:text-left">Back</Link>
+        <div className="flex gap-2">
+          <Link href={`/events/${eventId}/attendees`} className="hh-btn-secondary text-sm">View Attendees</Link>
+          <Link href="/events" className="text-sm text-[var(--hh-text-secondary)] hover:text-[var(--hh-text)] w-full sm:w-auto text-center sm:text-left">Back</Link>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-4 mb-6 md:mb-8 hh-card p-4 md:p-6">
@@ -304,6 +307,13 @@ export default function EditEventPage() {
               <option value="published">Published</option>
               <option value="archived">Archived</option>
             </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Offer cab option at checkout</label>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" className="h-4 w-4" {...register('allow_cab')} />
+            <span className="text-[var(--hh-text-secondary)] text-sm">Customers can request a cab when booking</span>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">

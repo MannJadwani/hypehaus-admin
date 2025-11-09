@@ -20,6 +20,7 @@ export const EventBaseSchema = z.object({
   base_price_cents: z.number().int().nonnegative().optional(),
   currency: z.string().length(3).optional(),
   status: z.enum(['draft', 'published', 'archived']).optional(),
+  allow_cab: z.boolean().optional(),
 });
 
 export const EventCreateSchema = EventBaseSchema.extend({

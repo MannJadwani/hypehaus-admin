@@ -29,6 +29,7 @@ export default function NewEventPage() {
       base_price_cents: 0,
       currency: 'INR',
       status: 'draft',
+      allow_cab: false,
     },
   });
 
@@ -157,6 +158,13 @@ export default function NewEventPage() {
               <option value="published">Published</option>
               <option value="archived">Archived</option>
             </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Offer cab option at checkout</label>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" className="h-4 w-4" {...register('allow_cab')} />
+            <span className="text-[var(--hh-text-secondary)] text-sm">Customers can request a cab when booking</span>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">

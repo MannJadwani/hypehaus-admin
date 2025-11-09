@@ -65,6 +65,9 @@ export default function ScanPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+  const scanBusyRef = useRef(false);
+  const lastScanRef = useRef(0);
 
   const startScanning = async () => {
     try {
@@ -108,13 +111,29 @@ export default function ScanPage() {
       // Assign stream to video element
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        // Wait for metadata/canplay to avoid dimension thrash that can cause flicker
+        await new Promise<void>((resolve) => {
+          const v = videoRef.current!;
+          const onReady = () => {
+            v.removeEventListener('loadedmetadata', onReady);
+            v.removeEventListener('canplay', onReady);
+            resolve();
+          };
+          if (v.readyState >= 2) {
+            resolve();
+          } else {
+            v.addEventListener('loadedmetadata', onReady, { once: true });
+            v.addEventListener('canplay', onReady, { once: true });
+          }
+          // Start play but ignore promise rejection on iOS
+          v.play().catch(() => {});
+        });
       } else {
         throw new Error('Video element not found');
       }
 
-      // Initialize QR scanner
-      const scanner = new Html5Qrcode('scanner');
+      // Initialize QR scanner into a hidden container (avoid DOM mutations overlaying the video)
+      const scanner = new Html5Qrcode('qr-hidden');
       scannerRef.current = scanner;
 
       // Set up canvas for frame capture
@@ -128,42 +147,55 @@ export default function ScanPage() {
         throw new Error('Could not get canvas context');
       }
 
-      // Set canvas size to match video
-      canvas.width = videoRef.current.videoWidth || 640;
-      canvas.height = videoRef.current.videoHeight || 480;
+      // Set canvas size to match video (downscale if large to reduce CPU)
+      const vw = videoRef.current.videoWidth || 640;
+      const vh = videoRef.current.videoHeight || 480;
+      const maxW = 640;
+      const scale = Math.min(1, maxW / Math.max(1, vw));
+      canvas.width = Math.max(1, Math.floor(vw * scale));
+      canvas.height = Math.max(1, Math.floor(vh * scale));
 
-      // Start scanning frames from video
-      const scanFrame = async () => {
+      // rAF loop with throttling and single in-flight decode
+      const scanLoop = () => {
         if (!videoRef.current || !scannerRef.current || !canvas || !context) {
+          rafIdRef.current = requestAnimationFrame(scanLoop);
           return;
         }
-
+        const now = performance.now();
+        if (scanBusyRef.current || now - lastScanRef.current < 400) {
+          rafIdRef.current = requestAnimationFrame(scanLoop);
+          return;
+        }
+        lastScanRef.current = now;
+        scanBusyRef.current = true;
         try {
-          // Draw current video frame to canvas
           context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-
-          // Convert canvas to blob, then to File
           canvas.toBlob((blob) => {
-            if (!blob || !scannerRef.current) return;
-            
+            if (!blob || !scannerRef.current) {
+              scanBusyRef.current = false;
+              rafIdRef.current = requestAnimationFrame(scanLoop);
+              return;
+            }
             const file = new File([blob], 'frame.png', { type: 'image/png' });
-            
-            // Scan the captured frame
-            scanner.scanFile(file, true)
+            scannerRef.current
+              .scanFile(file, true)
               .then((decodedText) => {
                 handleScanSuccess(decodedText);
               })
-              .catch(() => {
-                // Ignore scanning errors (no QR code found in this frame)
+              .catch(() => {})
+              .finally(() => {
+                scanBusyRef.current = false;
+                if (rafIdRef.current !== null) {
+                  rafIdRef.current = requestAnimationFrame(scanLoop);
+                }
               });
           }, 'image/png');
-        } catch (err) {
-          // Ignore frame capture errors
+        } catch (e) {
+          scanBusyRef.current = false;
+          rafIdRef.current = requestAnimationFrame(scanLoop);
         }
       };
-
-      // Scan frames at 10fps
-      scanIntervalRef.current = setInterval(scanFrame, 100);
+      rafIdRef.current = requestAnimationFrame(scanLoop);
     } catch (err: any) {
       console.error('Camera error:', err);
       setCameraError(err.message || 'Failed to access camera');
@@ -213,6 +245,11 @@ export default function ScanPage() {
       clearInterval(scanIntervalRef.current);
       scanIntervalRef.current = null;
     }
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    scanBusyRef.current = false;
 
     // Stop camera stream
     if (streamRef.current) {
@@ -306,15 +343,16 @@ export default function ScanPage() {
       if (scanIntervalRef.current) {
         clearInterval(scanIntervalRef.current);
       }
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
       if (scannerRef.current) {
         try {
           scannerRef.current.clear();
-        } catch (e) {
-          // Ignore cleanup errors
-        }
+        } catch {}
       }
     };
   }, []);
@@ -339,52 +377,52 @@ export default function ScanPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6">
         <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 text-[var(--hh-text)]">Scan Ticket</h1>
 
         {!result && !manualEntry && (
           <div className="space-y-4">
             {!scanning ? (
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <button
                   onClick={startScanning}
-                  className="hh-btn-primary w-full py-3 text-lg"
+                  className="hh-btn-primary w-full py-3 text-base sm:text-lg"
                 >
                   Start Scanning
                 </button>
                 <button
                   onClick={() => setManualEntry(true)}
-                  className="hh-btn-secondary w-full py-3"
+                  className="hh-btn-secondary w-full py-3 text-sm sm:text-base"
                 >
                   Enter QR Code Manually
                 </button>
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="w-full max-w-md mx-auto bg-black rounded-lg overflow-hidden relative" style={{ minHeight: '300px', maxHeight: '400px' }}>
+                <div className="w-full max-w-md mx-auto bg-black rounded-lg overflow-hidden relative aspect-video">
                   <video
                     ref={videoRef}
                     autoPlay
                     playsInline
                     muted
                     className="w-full h-full object-cover"
-                    style={{ minHeight: '300px', maxHeight: '400px' }}
+                    style={{ minHeight: '300px', maxHeight: '400px', transform: 'translateZ(0)' }}
                   />
                   <canvas ref={canvasRef} className="hidden" />
-                  <div id="scanner" className="absolute inset-0 pointer-events-none" />
+                  <div id="qr-hidden" className="hidden" />
                   {/* Scanning overlay indicator */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="border-2 border-[var(--hh-primary)] rounded-lg" style={{ width: '250px', height: '250px' }}>
-                      <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-[var(--hh-primary)] rounded-tl-lg" />
-                      <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-[var(--hh-primary)] rounded-tr-lg" />
-                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-[var(--hh-primary)] rounded-bl-lg" />
-                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-[var(--hh-primary)] rounded-br-lg" />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-4">
+                    <div className="border-2 border-[var(--hh-primary)] rounded-lg w-full max-w-[250px] aspect-square">
+                      <div className="absolute top-0 left-0 w-4 h-4 sm:w-6 sm:h-6 border-t-2 border-l-2 border-[var(--hh-primary)] rounded-tl-lg" />
+                      <div className="absolute top-0 right-0 w-4 h-4 sm:w-6 sm:h-6 border-t-2 border-r-2 border-[var(--hh-primary)] rounded-tr-lg" />
+                      <div className="absolute bottom-0 left-0 w-4 h-4 sm:w-6 sm:h-6 border-b-2 border-l-2 border-[var(--hh-primary)] rounded-bl-lg" />
+                      <div className="absolute bottom-0 right-0 w-4 h-4 sm:w-6 sm:h-6 border-b-2 border-r-2 border-[var(--hh-primary)] rounded-br-lg" />
                     </div>
                   </div>
                 </div>
                 <button
                   onClick={stopScanning}
-                  className="hh-btn-secondary w-full py-3"
+                  className="hh-btn-secondary w-full py-3 text-sm sm:text-base"
                 >
                   Stop Scanning
                 </button>
@@ -421,10 +459,10 @@ export default function ScanPage() {
                 rows={6}
               />
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleManualSubmit}
-                className="hh-btn-primary flex-1 py-3"
+                className="hh-btn-primary flex-1 py-3 text-sm sm:text-base"
               >
                 Verify Ticket
               </button>
@@ -434,7 +472,7 @@ export default function ScanPage() {
                   setManualQrData('');
                   setError(null);
                 }}
-                className="hh-btn-secondary px-6 py-3"
+                className="hh-btn-secondary px-6 py-3 text-sm sm:text-base w-full sm:w-auto"
               >
                 Cancel
               </button>
@@ -457,10 +495,10 @@ export default function ScanPage() {
                   : 'bg-red-500/10 border-red-500/20'
               }`}
             >
-              <div className="flex items-start justify-between mb-4">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+                <div className="flex-1">
                   <h2
-                    className={`text-xl font-semibold ${
+                    className={`text-lg sm:text-xl font-semibold ${
                       result.success ? 'text-green-400' : 'text-red-400'
                     }`}
                   >
@@ -472,7 +510,7 @@ export default function ScanPage() {
                 </div>
                 <button
                   onClick={resetScan}
-                  className="hh-btn-secondary px-4 py-2 text-sm"
+                  className="hh-btn-secondary px-4 py-2 text-sm w-full sm:w-auto"
                 >
                   Scan Another
                 </button>

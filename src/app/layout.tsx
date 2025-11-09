@@ -22,9 +22,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   const cookieStore = await cookies();
   const token = cookieStore.get("admin_token")?.value;
   let isAuthed = false;
@@ -37,12 +35,13 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[var(--hh-bg)] text-[var(--hh-text)]`}>
-        <div className="flex min-h-screen">
-          {isAuthed ? <Sidebar /> : null}
-          <main className="flex-1 px-4 py-4 md:px-6 md:py-6 w-full min-w-0">
-        {children}
-          </main>
-        </div>
+        {isAuthed ? <Sidebar /> : null}
+        <main
+          className="min-h-screen m-4 px-4 py-4 md:px-10 md:py-10 w-full min-w-0"
+          style={{ paddingLeft: "var(--sidebar-w, 0px)" }}
+        >
+          {children}
+        </main>
       </body>
     </html>
   );
