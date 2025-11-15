@@ -9,6 +9,19 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' } | null>(null);
+
+  // Load current user role
+  useEffect(() => {
+    fetch('/api/admin/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.admin) {
+          setCurrentUser(data.admin);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Keep main content padding in sync with actual sidebar width on desktop
   useEffect(() => {
@@ -83,6 +96,15 @@ export default function Sidebar() {
     </svg>
   );
 
+  const IconUsers = (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+
   const IconLogout = (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -127,8 +149,13 @@ export default function Sidebar() {
           <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
             <NavLink href="/" label="Dashboard" icon={IconHome} />
             <NavLink href="/events" label="Events" icon={IconCalendar} />
-            <NavLink href="/events/new" label="Create Event" icon={IconPlus} />
+            {currentUser?.role === 'admin' && (
+              <NavLink href="/events/new" label="Create Event" icon={IconPlus} />
+            )}
             <NavLink href="/scan" label="Scan Tickets" icon={IconQr} />
+            {currentUser?.role === 'admin' && (
+              <NavLink href="/admin-users" label="Admin Users" icon={IconUsers} />
+            )}
           </nav>
           <div className="p-3 border-t border-[var(--hh-border)]">
             <button onClick={logout} className="w-full hh-btn-secondary text-sm flex items-center justify-center gap-2">
@@ -152,8 +179,13 @@ export default function Sidebar() {
         <nav className="flex-1 px-2 py-2 space-y-1">
           <NavLink href="/" label="Dashboard" icon={IconHome} collapsed={collapsed} />
           <NavLink href="/events" label="Events" icon={IconCalendar} collapsed={collapsed} />
-          <NavLink href="/events/new" label="Create Event" icon={IconPlus} collapsed={collapsed} />
+          {currentUser?.role === 'admin' && (
+            <NavLink href="/events/new" label="Create Event" icon={IconPlus} collapsed={collapsed} />
+          )}
           <NavLink href="/scan" label="Scan Tickets" icon={IconQr} collapsed={collapsed} />
+          {currentUser?.role === 'admin' && (
+            <NavLink href="/admin-users" label="Admin Users" icon={IconUsers} collapsed={collapsed} />
+          )}
         </nav>
         <div className="p-3 border-t border-[var(--hh-border)]">
           <button onClick={logout} className="w-full hh-btn-secondary text-sm flex items-center justify-center gap-2">

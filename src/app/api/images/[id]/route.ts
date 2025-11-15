@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { ImageUpdateSchema } from '@/lib/validation';
+import { requireEventEdit } from '@/lib/admin-auth';
+import { NextRequest } from 'next/server';
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function PATCH(req: Request, { params }: Params) {
+export async function PATCH(req: NextRequest, { params }: Params) {
+  try {
+    await requireEventEdit(req); // Both admins and moderators can update images
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 403 });
+  }
+
   try {
     const { id } = await params;
     const json = await req.json();
@@ -28,7 +36,13 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 }
 
-export async function DELETE(_req: Request, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
+  try {
+    await requireEventEdit(req); // Both admins and moderators can delete images
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 403 });
+  }
+
   const { id } = await params;
   const { error } = await supabaseAdmin.from('event_images').delete().eq('id', id);
   if (error) {

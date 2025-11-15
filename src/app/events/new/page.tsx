@@ -5,13 +5,31 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { EventCreateSchema, type EventCreateInput } from '@/lib/validation';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const categories = ['Music', 'Tech', 'Comedy', 'Art', 'Sports'] as const;
 
 export default function NewEventPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' } | null>(null);
+
+  useEffect(() => {
+    // Load current user role
+    fetch('/api/admin/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.admin) {
+          setCurrentUser(data.admin);
+          // Redirect moderators - only admins can create events
+          if (data.admin.role !== 'admin') {
+            router.push('/events');
+          }
+        }
+      })
+      .catch(() => {});
+  }, [router]);
+
   const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<EventCreateInput>({
     resolver: zodResolver(EventCreateSchema),
     defaultValues: {
@@ -57,9 +75,26 @@ export default function NewEventPage() {
       router.push(`/events/${data.event.id}`);
     } else {
       const data = await res.json().catch(() => ({}));
-      setError(data?.error ?? 'Failed to create event');
+      setError(data?.error ?? 'Failed to create event. Only admins can create events.');
     }
   };
+
+  // Show loading or redirect if not admin
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-[var(--hh-text-secondary)]">Loading...</div>
+      </div>
+    );
+  }
+
+  if (currentUser.role !== 'admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-red-400">Unauthorized: Only admins can create events</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[70vh]">

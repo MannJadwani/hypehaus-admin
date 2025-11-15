@@ -1,11 +1,19 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { EventUpdateSchema } from '@/lib/validation';
+import { requireAuth, requireEventDelete, requireEventEdit } from '@/lib/admin-auth';
+import { NextRequest } from 'next/server';
 import React from 'react';
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
+  try {
+    await requireAuth(req); // Both admins and moderators can view events
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 401 });
+  }
+
   const { id } = await params;
   const { data: event, error } = await supabaseAdmin.from('events').select('*').eq('id', id).single();
   if (error || !event) {
@@ -27,7 +35,13 @@ export async function GET(_req: Request, { params }: Params) {
   return NextResponse.json({ event, tiers: tiers ?? [], images: images ?? [] });
 }
 
-export async function PATCH(req: Request, { params }: Params) {
+export async function PATCH(req: NextRequest, { params }: Params) {
+  try {
+    await requireEventEdit(req); // Both admins and moderators can edit events
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 403 });
+  }
+
   try {
     const { id } = await params;
     const json = await req.json();
@@ -54,7 +68,13 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 }
 
-export async function DELETE(_req: Request, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
+  try {
+    await requireEventDelete(req); // Only admins can delete events
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 403 });
+  }
+
   const { id } = await params;
   const { error } = await supabaseAdmin.from('events').delete().eq('id', id);
   if (error) {

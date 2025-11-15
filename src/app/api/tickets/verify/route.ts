@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { requireAuth } from '@/lib/admin-auth';
+import { NextRequest } from 'next/server';
 
 interface QRCodeData {
   order_id: string;
@@ -10,7 +12,13 @@ interface QRCodeData {
   timestamp: number;
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  try {
+    await requireAuth(req); // Both admins and moderators can scan tickets
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 401 });
+  }
+
   try {
     const { qrData } = await req.json();
 

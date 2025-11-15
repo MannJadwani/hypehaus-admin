@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { requireAuth } from '@/lib/admin-auth';
+import { NextRequest } from 'next/server';
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
+  try {
+    await requireAuth(req); // Both admins and moderators can view attendees
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 401 });
+  }
+
   const { id } = await params;
 
   // Fetch tickets for this event and join to orders for buyer data

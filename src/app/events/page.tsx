@@ -20,6 +20,7 @@ export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' } | null>(null);
 
   // Filters
   const [q, setQ] = useState('');
@@ -49,6 +50,18 @@ export default function EventsPage() {
     window.localStorage.setItem(COLS_KEY, JSON.stringify(visibleCols));
   }, [visibleCols]);
 
+  useEffect(() => {
+    // Load current user role
+    fetch('/api/admin/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.admin) {
+          setCurrentUser(data.admin);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const load = async () => {
     setLoading(true);
     setError(null);
@@ -73,7 +86,12 @@ export default function EventsPage() {
 
   const destroy = async (event: Event) => {
     if (!confirm(`Delete event "${event.title}"?`)) return;
-    await fetch(`/api/events/${event.id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/events/${event.id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data?.error || 'Failed to delete event. Only admins can delete events.');
+      return;
+    }
     await load();
   };
 
@@ -135,10 +153,12 @@ export default function EventsPage() {
         <Link href={`/events/${e.id}/attendees`} className="text-xs hh-btn-secondary">Attendees</Link>
         <button onClick={() => togglePublish(e)} className="text-xs hh-btn-secondary">{e.status === 'published' ? 'Unpublish' : 'Publish'}</button>
         <Link href={`/events/${e.id}`} className="text-xs hh-btn-secondary">Edit</Link>
-        <button onClick={() => destroy(e)} className="text-xs hh-btn-secondary">Delete</button>
+        {currentUser?.role === 'admin' && (
+          <button onClick={() => destroy(e)} className="text-xs hh-btn-secondary">Delete</button>
+        )}
       </div>
     )},
-  ], [togglePublish, destroy]);
+  ], [togglePublish, destroy, currentUser]);
 
   const columns = useMemo(() => allColumns.filter(c => visibleCols.includes(c.id) || c.id === 'actions'), [allColumns, visibleCols]);
 
@@ -154,7 +174,9 @@ export default function EventsPage() {
         <div className="flex gap-2">
           <button onClick={() => setShowColsPanel((s)=>!s)} className="hh-btn-secondary text-sm">Columns</button>
           <button onClick={exportCsv} className="hh-btn-secondary text-sm">Export CSV</button>
-          <Link href="/events/new" className="hh-btn-primary text-sm">New Event</Link>
+          {currentUser?.role === 'admin' && (
+            <Link href="/events/new" className="hh-btn-primary text-sm">New Event</Link>
+          )}
         </div>
         {showColsPanel && (
           <div className="absolute right-0 top-full mt-2 z-10 hh-card p-3 w-56">
@@ -219,7 +241,9 @@ export default function EventsPage() {
                     <span className="text-xs text-(--hh-text-tertiary)">Cabs: {e.cab_opt_in_count ?? 0}</span>
                     <button onClick={() => togglePublish(e)} className="text-xs hh-btn-secondary px-3 py-1">{e.status === 'published' ? 'Unpublish' : 'Publish'}</button>
                     <Link href={`/events/${e.id}`} className="text-xs hh-btn-secondary px-3 py-1">Edit</Link>
-                    <button onClick={() => destroy(e)} className="text-xs hh-btn-secondary px-3 py-1">Delete</button>
+                    {currentUser?.role === 'admin' && (
+                      <button onClick={() => destroy(e)} className="text-xs hh-btn-secondary px-3 py-1">Delete</button>
+                    )}
                   </div>
                 </div>
               </div>

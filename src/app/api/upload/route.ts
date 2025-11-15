@@ -1,9 +1,19 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { compressImage } from '@/lib/image-compress';
+import { requireAuth } from '@/lib/admin-auth';
+import { NextRequest } from 'next/server';
 
 const BUCKET = process.env.EVENT_IMAGES_BUCKET || process.env.NEXT_PUBLIC_EVENT_IMAGES_BUCKET || 'event-images';
+const MAX_IMAGE_SIZE_KB = 30;
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  try {
+    await requireAuth(req); // Both admins and moderators can upload images
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 401 });
+  }
+
   try {
     console.log('[upload] start');
     const { data, error } = await supabaseAdmin.storage.listBuckets();
@@ -32,17 +42,34 @@ export async function POST(req: Request) {
       }, { status: 500 });
     }
 
-    const fileExt = file.name.split('.').pop() ?? 'bin';
+    // Compress image before upload
+    const arrayBuffer = await file.arrayBuffer();
+    const compressedBuffer = await compressImage(arrayBuffer, MAX_IMAGE_SIZE_KB);
+    
+    // Determine file extension and content type
+    const originalExt = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+    const isImage = file.type?.startsWith('image/');
+    const fileExt = isImage ? (compressedBuffer.length < arrayBuffer.byteLength ? 'jpg' : originalExt) : originalExt;
+    const contentType = isImage ? 'image/jpeg' : (file.type || 'application/octet-stream');
+    
     const rand = Math.random().toString(36).slice(2);
     const fileName = `${Date.now()}-${rand}.${fileExt}`;
     const path = eventId ? `${eventId}/${fileName}` : `misc/${fileName}`;
-    console.log('[upload] target', { fileName, path, fileType: file.type });
+    
+    const originalSizeKB = (arrayBuffer.byteLength / 1024).toFixed(2);
+    const compressedSizeKB = (compressedBuffer.length / 1024).toFixed(2);
+    console.log('[upload] compression', { 
+      originalSizeKB, 
+      compressedSizeKB, 
+      fileName, 
+      path, 
+      fileType: contentType 
+    });
 
-    const arrayBuffer = await file.arrayBuffer();
     const { error: uploadError } = await supabaseAdmin.storage
       .from(BUCKET)
-      .upload(path, new Uint8Array(arrayBuffer), {
-        contentType: file.type || 'application/octet-stream',
+      .upload(path, new Uint8Array(compressedBuffer), {
+        contentType,
         upsert: false,
       });
     if (uploadError) {

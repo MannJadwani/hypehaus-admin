@@ -49,6 +49,18 @@ export const ImageCreateSchema = z.object({
 
 export const ImageUpdateSchema = ImageCreateSchema.partial();
 
+export const AdminUserCreateSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  role: z.enum(['admin', 'moderator']),
+});
+
+export const AdminUserUpdateSchema = z.object({
+  email: z.string().email().optional(),
+  password: z.string().min(6).optional(),
+  role: z.enum(['admin', 'moderator']).optional(),
+});
+
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type EventCreateInput = z.infer<typeof EventCreateSchema>;
 export type EventUpdateInput = z.infer<typeof EventUpdateSchema>;
@@ -56,5 +68,7 @@ export type TierCreateInput = z.infer<typeof TierCreateSchema>;
 export type TierUpdateInput = z.infer<typeof TierUpdateSchema>;
 export type ImageCreateInput = z.infer<typeof ImageCreateSchema>;
 export type ImageUpdateInput = z.infer<typeof ImageUpdateSchema>;
+export type AdminUserCreateInput = z.infer<typeof AdminUserCreateSchema>;
+export type AdminUserUpdateInput = z.infer<typeof AdminUserUpdateSchema>;
 
 

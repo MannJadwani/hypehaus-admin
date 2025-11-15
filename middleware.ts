@@ -44,10 +44,11 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Protect API routes for events, tiers, images
+    // Protect API routes for events, tiers, images, admin users
     '/api/events/:path*',
     '/api/tiers/:path*',
     '/api/images/:path*',
+    '/api/admin/users/:path*',
     // Protect admin pages (everything except signin)
     '/((?!_next|api/admin/login|signin|public|favicon.ico).*)',
   ],

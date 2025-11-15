@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { EventCreateSchema } from '@/lib/validation';
+import { requireEventCreate, requireAuth } from '@/lib/admin-auth';
+import { NextRequest } from 'next/server';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  try {
+    await requireAuth(req); // Both admins and moderators can view events
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 401 });
+  }
+
   // Fetch events
   const { data: events, error } = await supabaseAdmin
     .from('events')
@@ -28,7 +36,13 @@ export async function GET() {
   return NextResponse.json({ events: withCounts });
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  try {
+    await requireEventCreate(req); // Only admins can create events
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 403 });
+  }
+
   try {
     const json = await req.json();
     const parsed = EventCreateSchema.safeParse(json);

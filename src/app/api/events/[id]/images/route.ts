@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { ImageCreateSchema } from '@/lib/validation';
+import { requireAuth, requireEventEdit } from '@/lib/admin-auth';
+import { NextRequest } from 'next/server';
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
+  try {
+    await requireAuth(req); // Both admins and moderators can view images
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 401 });
+  }
+
   const { id: eventId } = await params;
   const { data, error } = await supabaseAdmin
     .from('event_images')
@@ -17,7 +25,13 @@ export async function GET(_req: Request, { params }: Params) {
   return NextResponse.json({ images: data ?? [] });
 }
 
-export async function POST(req: Request, { params }: Params) {
+export async function POST(req: NextRequest, { params }: Params) {
+  try {
+    await requireEventEdit(req); // Both admins and moderators can create images
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 403 });
+  }
+
   try {
     const { id: eventId } = await params;
     const json = await req.json();
