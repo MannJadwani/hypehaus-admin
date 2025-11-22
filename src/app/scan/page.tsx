@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
+import Link from 'next/link';
 
 interface TicketData {
   id: string;
@@ -60,6 +61,8 @@ export default function ScanPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [manualEntry, setManualEntry] = useState(false);
   const [manualQrData, setManualQrData] = useState('');
+  
+  // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -75,203 +78,118 @@ export default function ScanPage() {
       setCameraError(null);
       setResult(null);
       
-      // Check if we're on HTTPS or localhost (required for camera access)
       const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       if (!isSecure) {
-        throw new Error('Camera access requires HTTPS. Please access this page via HTTPS or use localhost.');
+        throw new Error('Camera access requires HTTPS.');
       }
 
-      // Check if getUserMedia is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera API not available in this browser. Please use a modern browser with camera support.');
+        throw new Error('Camera API not available.');
       }
 
-      // Set scanning to true to render the video element
       setScanning(true);
 
-      // Wait for React to render the video element
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            resolve();
-          });
-        });
-      });
+      // Wait for render
+      await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 
-      // Get camera stream using native browser API
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment', // Prefer back camera on mobile
-        },
+        video: { facingMode: 'environment' },
         audio: false,
       });
 
       streamRef.current = stream;
 
-      // Assign stream to video element
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // Wait for metadata/canplay to avoid dimension thrash that can cause flicker
         await new Promise<void>((resolve) => {
           const v = videoRef.current!;
-          const onReady = () => {
-            v.removeEventListener('loadedmetadata', onReady);
-            v.removeEventListener('canplay', onReady);
-            resolve();
-          };
-          if (v.readyState >= 2) {
-            resolve();
-          } else {
-            v.addEventListener('loadedmetadata', onReady, { once: true });
-            v.addEventListener('canplay', onReady, { once: true });
-          }
-          // Start play but ignore promise rejection on iOS
+          if (v.readyState >= 2) resolve();
+          else v.addEventListener('canplay', () => resolve(), { once: true });
           v.play().catch(() => {});
         });
-      } else {
-        throw new Error('Video element not found');
       }
 
-      // Initialize QR scanner into a hidden container (avoid DOM mutations overlaying the video)
       const scanner = new Html5Qrcode('qr-hidden');
       scannerRef.current = scanner;
 
-      // Set up canvas for frame capture
-      if (!canvasRef.current) {
-        throw new Error('Canvas element not found');
-      }
+      if (!canvasRef.current || !videoRef.current) return;
 
       const canvas = canvasRef.current;
-      const context = canvas.getContext('2d');
-      if (!context) {
-        throw new Error('Could not get canvas context');
-      }
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      
+      if (!context) return;
 
-      // Set canvas size to match video (downscale if large to reduce CPU)
-      const vw = videoRef.current.videoWidth || 640;
-      const vh = videoRef.current.videoHeight || 480;
-      const maxW = 640;
-      const scale = Math.min(1, maxW / Math.max(1, vw));
-      canvas.width = Math.max(1, Math.floor(vw * scale));
-      canvas.height = Math.max(1, Math.floor(vh * scale));
-
-      // rAF loop with throttling and single in-flight decode
       const scanLoop = () => {
         if (!videoRef.current || !scannerRef.current || !canvas || !context) {
           rafIdRef.current = requestAnimationFrame(scanLoop);
           return;
         }
+
         const now = performance.now();
-        if (scanBusyRef.current || now - lastScanRef.current < 400) {
+        // Throttle scanning to every 300ms
+        if (scanBusyRef.current || now - lastScanRef.current < 300) {
           rafIdRef.current = requestAnimationFrame(scanLoop);
           return;
         }
+
         lastScanRef.current = now;
         scanBusyRef.current = true;
+
         try {
-          context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob((blob) => {
-            if (!blob || !scannerRef.current) {
-              scanBusyRef.current = false;
-              rafIdRef.current = requestAnimationFrame(scanLoop);
-              return;
-            }
-            const file = new File([blob], 'frame.png', { type: 'image/png' });
-            scannerRef.current
-              .scanFile(file, true)
-              .then((decodedText) => {
-                handleScanSuccess(decodedText);
-              })
-              .catch(() => {})
-              .finally(() => {
-                scanBusyRef.current = false;
-                if (rafIdRef.current !== null) {
-                  rafIdRef.current = requestAnimationFrame(scanLoop);
+            // Draw current frame
+            canvas.width = videoRef.current.videoWidth;
+            canvas.height = videoRef.current.videoHeight;
+            context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+            
+            canvas.toBlob((blob) => {
+                if (!blob || !scannerRef.current) {
+                    scanBusyRef.current = false;
+                    rafIdRef.current = requestAnimationFrame(scanLoop);
+                    return;
                 }
-              });
-          }, 'image/png');
+
+                const file = new File([blob], 'frame.png', { type: 'image/png' });
+                scannerRef.current.scanFile(file, false)
+                    .then((decodedText) => {
+                        handleScanSuccess(decodedText);
+                    })
+                    .catch(() => {
+                         // No QR code found, continue scanning
+                         scanBusyRef.current = false;
+                         rafIdRef.current = requestAnimationFrame(scanLoop);
+                    });
+            }, 'image/png');
+
         } catch (e) {
-          scanBusyRef.current = false;
-          rafIdRef.current = requestAnimationFrame(scanLoop);
+            scanBusyRef.current = false;
+            rafIdRef.current = requestAnimationFrame(scanLoop);
         }
       };
+
       rafIdRef.current = requestAnimationFrame(scanLoop);
     } catch (err: any) {
       console.error('Camera error:', err);
       setCameraError(err.message || 'Failed to access camera');
       setScanning(false);
-      
-      // Stop camera stream
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
-
-      // Clean up scanner if it was created
-      if (scannerRef.current) {
-        try {
-          await scannerRef.current.stop();
-          scannerRef.current.clear();
-        } catch (e) {
-          // Ignore cleanup errors
-        }
-        scannerRef.current = null;
-      }
-
-      // Clear video element
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-
-      // Provide specific error messages
-      const errorMsg = err.message || '';
-      if (errorMsg.includes('Permission') || errorMsg.includes('permission') || errorMsg.includes('NotAllowedError')) {
-        setError('Camera permission denied. Please allow camera access in your browser settings and try again.');
-      } else if (errorMsg.includes('not found') || errorMsg.includes('No cameras') || errorMsg.includes('NotFoundError')) {
-        setError('No camera found. Please use a device with a camera or enter QR code manually.');
-      } else if (errorMsg.includes('HTTPS')) {
-        setError('Camera access requires HTTPS. Please access this page via HTTPS or use localhost.');
-      } else if (errorMsg.includes('API not available')) {
-        setError('Camera API not available. Please use a modern browser (Chrome, Firefox, Safari, Edge) with camera support.');
-      } else {
-        setError(`Failed to start camera: ${errorMsg}. Please check your camera settings or use manual entry.`);
-      }
+      cleanupCamera();
     }
   };
 
-  const stopScanning = async () => {
-    // Stop frame scanning interval
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current);
-      scanIntervalRef.current = null;
-    }
-    if (rafIdRef.current !== null) {
-      cancelAnimationFrame(rafIdRef.current);
-      rafIdRef.current = null;
-    }
-    scanBusyRef.current = false;
-
-    // Stop camera stream
+  const cleanupCamera = () => {
+    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     }
-
-    // Clear QR scanner
     if (scannerRef.current) {
-      try {
-        scannerRef.current.clear();
-      } catch (e) {
-        console.error('Error clearing scanner:', e);
-      }
+      try { scannerRef.current.clear(); } catch {}
       scannerRef.current = null;
     }
+    if (videoRef.current) videoRef.current.srcObject = null;
+  };
 
-    // Clear video element
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-
+  const stopScanning = async () => {
+    cleanupCamera();
     setScanning(false);
   };
 
@@ -287,9 +205,7 @@ export default function ScanPage() {
 
       const response = await fetch('/api/tickets/verify', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ qrData }),
       });
 
@@ -317,8 +233,7 @@ export default function ScanPage() {
         allTickets: data.allTickets,
       });
     } catch (err: any) {
-      console.error('Verification error:', err);
-      setError(err.message || 'Network error. Please check your connection and try again.');
+      setError(err.message || 'Network error. Please check your connection.');
     }
   };
 
@@ -328,6 +243,7 @@ export default function ScanPage() {
       return;
     }
     verifyTicket(manualQrData.trim());
+    setManualEntry(false);
   };
 
   const resetScan = () => {
@@ -335,374 +251,268 @@ export default function ScanPage() {
     setError(null);
     setManualEntry(false);
     setManualQrData('');
+    // Optionally restart scanning immediately
+    // startScanning();
   };
 
   useEffect(() => {
-    return () => {
-      // Cleanup on unmount
-      if (scanIntervalRef.current) {
-        clearInterval(scanIntervalRef.current);
-      }
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current);
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      if (scannerRef.current) {
-        try {
-          scannerRef.current.clear();
-        } catch {}
-      }
-    };
+    return () => cleanupCamera();
   }, []);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
     });
   };
 
-  const formatCurrency = (cents: number, currency: string = 'INR') => {
-    const amount = cents / 100;
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: currency,
-    }).format(amount);
-  };
-
   return (
-    <div className="min-h-screen">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        <h1 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 text-[var(--hh-text)]">Scan Ticket</h1>
-
-        {!result && !manualEntry && (
-          <div className="space-y-4">
-            {!scanning ? (
-              <div className="space-y-3 sm:space-y-4">
-                <button
-                  onClick={startScanning}
-                  className="hh-btn-primary w-full py-3 text-base sm:text-lg"
-                >
-                  Start Scanning
-                </button>
-                <button
-                  onClick={() => setManualEntry(true)}
-                  className="hh-btn-secondary w-full py-3 text-sm sm:text-base"
-                >
-                  Enter QR Code Manually
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="w-full max-w-md mx-auto bg-black rounded-lg overflow-hidden relative aspect-video">
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover"
-                    style={{ minHeight: '300px', maxHeight: '400px', transform: 'translateZ(0)' }}
-                  />
-                  <canvas ref={canvasRef} className="hidden" />
-                  <div id="qr-hidden" className="hidden" />
-                  {/* Scanning overlay indicator */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-4">
-                    <div className="border-2 border-[var(--hh-primary)] rounded-lg w-full max-w-[250px] aspect-square">
-                      <div className="absolute top-0 left-0 w-4 h-4 sm:w-6 sm:h-6 border-t-2 border-l-2 border-[var(--hh-primary)] rounded-tl-lg" />
-                      <div className="absolute top-0 right-0 w-4 h-4 sm:w-6 sm:h-6 border-t-2 border-r-2 border-[var(--hh-primary)] rounded-tr-lg" />
-                      <div className="absolute bottom-0 left-0 w-4 h-4 sm:w-6 sm:h-6 border-b-2 border-l-2 border-[var(--hh-primary)] rounded-bl-lg" />
-                      <div className="absolute bottom-0 right-0 w-4 h-4 sm:w-6 sm:h-6 border-b-2 border-r-2 border-[var(--hh-primary)] rounded-br-lg" />
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={stopScanning}
-                  className="hh-btn-secondary w-full py-3 text-sm sm:text-base"
-                >
-                  Stop Scanning
-                </button>
-              </div>
-            )}
-
-            {cameraError && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
-                <p className="font-medium">Camera Error</p>
-                <p className="text-sm mt-1">{cameraError}</p>
-              </div>
-            )}
-
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
-                <p className="font-medium">Error</p>
-                <p className="text-sm mt-1">{error}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {manualEntry && !result && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2 text-[var(--hh-text-secondary)]">
-                QR Code Data
-              </label>
-              <textarea
-                value={manualQrData}
-                onChange={(e) => setManualQrData(e.target.value)}
-                placeholder='Paste QR code JSON data here (e.g., {"order_id":"...","ticket_index":0,...})'
-                className="w-full px-4 py-3 bg-[var(--hh-bg-input)] border border-[var(--hh-border)] rounded-lg text-[var(--hh-text)] placeholder:text-[var(--hh-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--hh-primary)]"
-                rows={6}
-              />
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={handleManualSubmit}
-                className="hh-btn-primary flex-1 py-3 text-sm sm:text-base"
-              >
-                Verify Ticket
-              </button>
-              <button
-                onClick={() => {
-                  setManualEntry(false);
-                  setManualQrData('');
-                  setError(null);
-                }}
-                className="hh-btn-secondary px-6 py-3 text-sm sm:text-base w-full sm:w-auto"
-              >
-                Cancel
-              </button>
-            </div>
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
-                <p className="font-medium">Error</p>
-                <p className="text-sm mt-1">{error}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {result && (
-          <div className="space-y-6">
-            <div
-              className={`border rounded-lg p-6 ${
-                result.success
-                  ? 'bg-green-500/10 border-green-500/20'
-                  : 'bg-red-500/10 border-red-500/20'
-              }`}
-            >
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
-                <div className="flex-1">
-                  <h2
-                    className={`text-lg sm:text-xl font-semibold ${
-                      result.success ? 'text-green-400' : 'text-red-400'
-                    }`}
-                  >
-                    {result.success ? '✓ Ticket Verified' : '✗ Verification Failed'}
-                  </h2>
-                  <p className="text-sm mt-1 text-[var(--hh-text-secondary)]">
-                    {result.message}
-                  </p>
-                </div>
-                <button
-                  onClick={resetScan}
-                  className="hh-btn-secondary px-4 py-2 text-sm w-full sm:w-auto"
-                >
-                  Scan Another
-                </button>
-              </div>
-            </div>
-
-            {result.ticket && result.order && result.event && (
-              <div className="space-y-6">
-                {/* Order Information */}
-                <div className="hh-card p-4 md:p-6">
-                  <h3 className="text-base md:text-lg font-semibold mb-3 md:mb-4 text-[var(--hh-text)]">Order Information</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 text-sm">
-                    <div>
-                      <span className="text-[var(--hh-text-tertiary)]">Order ID:</span>
-                      <p className="font-mono text-[var(--hh-text)]">{result.order.id.slice(0, 8)}...</p>
-                    </div>
-                    <div>
-                      <span className="text-[var(--hh-text-tertiary)]">Status:</span>
-                      <p className="text-[var(--hh-text)] capitalize">{result.order.status}</p>
-                    </div>
-                    <div>
-                      <span className="text-[var(--hh-text-tertiary)]">Total Amount:</span>
-                      <p className="text-[var(--hh-text)]">
-                        {formatCurrency(result.order.total_amount_cents, result.order.currency)}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-[var(--hh-text-tertiary)]">Payment Method:</span>
-                      <p className="text-[var(--hh-text)]">
-                        {result.order.notes?.payment_method || 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-[var(--hh-text-tertiary)]">Order Date:</span>
-                      <p className="text-[var(--hh-text)]">{formatDate(result.order.created_at)}</p>
-                    </div>
-                    {result.order.razorpay_order_id && (
-                      <div>
-                        <span className="text-[var(--hh-text-tertiary)]">Razorpay Order:</span>
-                        <p className="font-mono text-xs text-[var(--hh-text)]">
-                          {result.order.razorpay_order_id}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Account Information */}
-                <div className="hh-card p-4 md:p-6">
-                  <h3 className="text-base md:text-lg font-semibold mb-3 md:mb-4 text-[var(--hh-text)]">Account Information</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 text-sm">
-                    <div>
-                      <span className="text-[var(--hh-text-tertiary)]">Email:</span>
-                      <p className="text-[var(--hh-text)]">{result.order.email}</p>
-                    </div>
-                    <div>
-                      <span className="text-[var(--hh-text-tertiary)]">WhatsApp:</span>
-                      <p className="text-[var(--hh-text)]">{result.order.whatsapp_number}</p>
-                    </div>
-                    <div>
-                      <span className="text-[var(--hh-text-tertiary)]">User ID:</span>
-                      <p className="font-mono text-xs text-[var(--hh-text)]">
-                        {result.order.user_id.slice(0, 8)}...
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Event Information */}
-                <div className="hh-card p-4 md:p-6">
-                  <h3 className="text-base md:text-lg font-semibold mb-3 md:mb-4 text-[var(--hh-text)]">Event Information</h3>
-                  <div className="space-y-3 text-sm">
-                    <div>
-                      <span className="text-[var(--hh-text-tertiary)]">Event:</span>
-                      <p className="text-base md:text-lg font-semibold text-[var(--hh-text)]">{result.event.title}</p>
-                    </div>
-                    {result.event.description && (
-                      <div>
-                        <span className="text-[var(--hh-text-tertiary)]">Description:</span>
-                        <p className="text-[var(--hh-text)] break-words">{result.event.description}</p>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                      <div>
-                        <span className="text-[var(--hh-text-tertiary)]">Start:</span>
-                        <p className="text-[var(--hh-text)]">{formatDate(result.event.start_at)}</p>
-                      </div>
-                      {result.event.end_at && (
-                        <div>
-                          <span className="text-[var(--hh-text-tertiary)]">End:</span>
-                          <p className="text-[var(--hh-text)]">{formatDate(result.event.end_at)}</p>
-                        </div>
-                      )}
-                    </div>
-                    {(result.event.venue_name || result.event.city) && (
-                      <div>
-                        <span className="text-[var(--hh-text-tertiary)]">Venue:</span>
-                        <p className="text-[var(--hh-text)]">
-                          {[result.event.venue_name, result.event.address_line, result.event.city]
-                            .filter(Boolean)
-                            .join(', ')}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Scanned Ticket */}
-                <div className="hh-card p-4 md:p-6">
-                  <h3 className="text-base md:text-lg font-semibold mb-3 md:mb-4 text-[var(--hh-text)]">Scanned Ticket</h3>
-                  <div className="space-y-3 text-sm">
-                    <div>
-                      <span className="text-[var(--hh-text-tertiary)]">Attendee:</span>
-                      <p className="text-lg font-semibold text-[var(--hh-text)]">
-                        {result.ticket.attendee_name}
-                      </p>
-                    </div>
-                    {result.ticket.tier && (
-                      <div>
-                        <span className="text-[var(--hh-text-tertiary)]">Tier:</span>
-                        <p className="text-[var(--hh-text)]">{result.ticket.tier.name}</p>
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-[var(--hh-text-tertiary)]">Status:</span>
-                      <p
-                        className={`font-semibold capitalize ${
-                          result.ticket.status === 'used'
-                            ? 'text-green-400'
-                            : result.ticket.status === 'cancelled'
-                            ? 'text-red-400'
-                            : 'text-[var(--hh-text)]'
-                        }`}
-                      >
-                        {result.ticket.status}
-                      </p>
-                    </div>
-                    {result.ticket.scanned_at && (
-                      <div>
-                        <span className="text-[var(--hh-text-tertiary)]">Scanned At:</span>
-                        <p className="text-[var(--hh-text)]">{formatDate(result.ticket.scanned_at)}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* All Tickets in Order */}
-                {result.allTickets && result.allTickets.length > 0 && (
-                  <div className="hh-card p-4 md:p-6">
-                    <h3 className="text-base md:text-lg font-semibold mb-3 md:mb-4 text-[var(--hh-text)]">
-                      All Tickets in Order ({result.allTickets.length})
-                    </h3>
-                    <div className="space-y-3">
-                      {result.allTickets.map((ticket, index) => (
-                        <div
-                          key={ticket.id}
-                          className="border border-[var(--hh-border)] rounded-lg p-3 md:p-4 bg-[var(--hh-bg-elevated)]"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="font-semibold text-[var(--hh-text)]">
-                                {ticket.attendee_name}
-                              </p>
-                              {ticket.tier && (
-                                <p className="text-sm text-[var(--hh-text-secondary)] mt-1">
-                                  {ticket.tier.name}
-                                </p>
-                              )}
-                            </div>
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${
-                                ticket.status === 'used'
-                                  ? 'bg-green-500/20 text-green-400'
-                                  : ticket.status === 'cancelled'
-                                  ? 'bg-red-500/20 text-red-400'
-                                  : 'bg-blue-500/20 text-blue-400'
-                              }`}
-                            >
-                              {ticket.status}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+    <div className="max-w-3xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--hh-text)] tracking-tight">Scan Tickets</h1>
+          <p className="text-[var(--hh-text-secondary)] mt-1">Verify attendee tickets securely</p>
+        </div>
+        <Link href="/events" className="hh-btn-secondary flex items-center gap-2 text-sm">
+           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+           </svg>
+           Exit
+        </Link>
       </div>
+
+      {/* Main Action Area */}
+      {!result && !manualEntry && !scanning && (
+        <div className="hh-card p-8 md:p-12 flex flex-col items-center justify-center text-center space-y-6 min-h-[400px]">
+          <div className="w-20 h-20 bg-[var(--hh-primary)]/10 rounded-full flex items-center justify-center text-[var(--hh-primary)] mb-2">
+            <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+            </svg>
+          </div>
+          <div>
+             <h3 className="text-xl font-semibold text-[var(--hh-text)] mb-2">Ready to Scan</h3>
+             <p className="text-[var(--hh-text-secondary)] max-w-md mx-auto">
+                Point your device camera at a ticket QR code to verify its validity instantly.
+             </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+             <button onClick={startScanning} className="hh-btn-primary py-3 flex-1 flex items-center justify-center gap-2 text-base">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Open Camera
+             </button>
+             <button onClick={() => setManualEntry(true)} className="hh-btn-secondary py-3 flex-1 flex items-center justify-center gap-2 text-base">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Manual Entry
+             </button>
+          </div>
+          {error && (
+             <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+                {error}
+             </div>
+          )}
+        </div>
+      )}
+
+      {/* Scanner View */}
+      {scanning && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col">
+          <div className="relative flex-1 overflow-hidden">
+             <video
+                ref={videoRef}
+                autoPlay playsInline muted
+                className="absolute inset-0 w-full h-full object-cover"
+             />
+             <canvas ref={canvasRef} className="hidden" />
+             <div id="qr-hidden" className="hidden" />
+             
+             {/* Overlay */}
+             <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center p-8">
+                <div className="relative w-full max-w-xs aspect-square border-2 border-white/30 rounded-3xl overflow-hidden">
+                    <div className="absolute inset-0 border-2 border-[var(--hh-primary)] rounded-3xl animate-pulse opacity-75"></div>
+                    {/* Scanning line animation */}
+                    <div className="absolute top-0 left-0 w-full h-1 bg-[var(--hh-primary)] shadow-[0_0_15px_rgba(139,92,246,0.8)] animate-[scan_2s_infinite_linear]"></div>
+                </div>
+                <p className="text-white/80 mt-8 font-medium text-center bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm">
+                    Align QR code within the frame
+                </p>
+             </div>
+
+             {/* Close Button */}
+             <button onClick={stopScanning} className="absolute top-6 right-6 p-3 bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black/70 transition-colors">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Entry View */}
+      {manualEntry && !result && (
+        <div className="hh-card p-6 md:p-8 max-w-xl mx-auto">
+           <h2 className="text-xl font-bold text-[var(--hh-text)] mb-6">Manual Verification</h2>
+           <div className="space-y-4">
+              <div>
+                 <label className="block text-sm font-medium mb-2 text-[var(--hh-text-secondary)]">QR Code Data</label>
+                 <textarea
+                    value={manualQrData}
+                    onChange={(e) => setManualQrData(e.target.value)}
+                    placeholder='Paste the raw QR code data here...'
+                    className="hh-input w-full font-mono text-sm min-h-[150px]"
+                 />
+              </div>
+              <div className="flex gap-3 pt-2">
+                 <button onClick={handleManualSubmit} className="hh-btn-primary flex-1 justify-center">Verify</button>
+                 <button onClick={() => setManualEntry(false)} className="hh-btn-secondary flex-1 justify-center">Cancel</button>
+              </div>
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm flex items-center gap-2">
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {error}
+                </div>
+              )}
+           </div>
+        </div>
+      )}
+
+      {/* Result View */}
+      {result && (
+        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            {/* Status Banner */}
+            <div className={`p-6 rounded-2xl border flex flex-col md:flex-row items-center gap-6 text-center md:text-left ${
+                result.success 
+                ? 'bg-green-500/10 border-green-500/20 text-green-400' 
+                : 'bg-red-500/10 border-red-500/20 text-red-400'
+            }`}>
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center shrink-0 ${
+                     result.success ? 'bg-green-500/20' : 'bg-red-500/20'
+                }`}>
+                    {result.success ? (
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                    ) : (
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    )}
+                </div>
+                <div className="flex-1">
+                    <h2 className="text-2xl font-bold mb-1">{result.success ? 'Ticket Valid' : 'Invalid Ticket'}</h2>
+                    <p className={`opacity-90 ${result.success ? 'text-green-300' : 'text-red-300'}`}>{result.message}</p>
+                </div>
+                <button onClick={resetScan} className={`px-6 py-3 rounded-xl font-semibold transition-transform active:scale-95 ${
+                     result.success 
+                     ? 'bg-green-500 text-green-950 hover:bg-green-400' 
+                     : 'bg-red-500 text-white hover:bg-red-400'
+                }`}>
+                    Scan Next
+                </button>
+            </div>
+
+            {result.ticket && result.event && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Attendee Info */}
+                    <div className="hh-card p-6">
+                        <h3 className="text-lg font-semibold text-[var(--hh-text)] mb-4 flex items-center gap-2">
+                            <svg className="w-5 h-5 text-[var(--hh-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            Attendee
+                        </h3>
+                        <div className="space-y-4">
+                             <div>
+                                 <div className="text-sm text-[var(--hh-text-secondary)]">Name</div>
+                                 <div className="text-xl font-medium text-[var(--hh-text)]">{result.ticket.attendee_name}</div>
+                             </div>
+                             <div className="flex gap-4">
+                                 <div>
+                                     <div className="text-sm text-[var(--hh-text-secondary)]">Tier</div>
+                                     <div className="text-[var(--hh-text)] font-medium">{result.ticket.tier?.name || 'Standard'}</div>
+                                 </div>
+                                 <div>
+                                     <div className="text-sm text-[var(--hh-text-secondary)]">Status</div>
+                                     <div className="capitalize font-medium">{result.ticket.status}</div>
+                                 </div>
+                             </div>
+                             <div>
+                                 <div className="text-sm text-[var(--hh-text-secondary)]">Ticket ID</div>
+                                 <div className="font-mono text-sm text-[var(--hh-text-tertiary)] bg-[var(--hh-bg-input)] px-2 py-1 rounded inline-block">
+                                     {result.ticket.id}
+                                 </div>
+                             </div>
+                        </div>
+                    </div>
+
+                    {/* Event Info */}
+                    <div className="hh-card p-6">
+                        <h3 className="text-lg font-semibold text-[var(--hh-text)] mb-4 flex items-center gap-2">
+                             <svg className="w-5 h-5 text-[var(--hh-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Event Details
+                        </h3>
+                        <div className="space-y-3">
+                            <div>
+                                <div className="text-lg font-medium text-[var(--hh-text)]">{result.event.title}</div>
+                                <div className="text-sm text-[var(--hh-text-secondary)]">{formatDate(result.event.start_at)}</div>
+                            </div>
+                            {result.event.venue_name && (
+                                <div className="flex items-start gap-2 text-sm text-[var(--hh-text-secondary)]">
+                                    <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    {result.event.venue_name}, {result.event.city}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Group Tickets in same order */}
+            {result.allTickets && result.allTickets.length > 1 && (
+                <div className="hh-card p-6">
+                    <h3 className="text-lg font-semibold text-[var(--hh-text)] mb-4">Other Tickets in Order ({result.allTickets.length})</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {result.allTickets.filter(t => t.id !== result.ticket?.id).map(t => (
+                            <div key={t.id} className="p-3 rounded-xl bg-[var(--hh-bg-elevated)] border border-[var(--hh-border)] flex items-center justify-between">
+                                <div>
+                                    <div className="font-medium text-[var(--hh-text)]">{t.attendee_name}</div>
+                                    <div className="text-xs text-[var(--hh-text-secondary)]">{t.tier?.name}</div>
+                                </div>
+                                <span className={`text-xs px-2 py-1 rounded-full capitalize border ${
+                                    t.status === 'used' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
+                                    t.status === 'valid' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 
+                                    'bg-[var(--hh-bg-input)] text-[var(--hh-text-tertiary)] border-[var(--hh-border)]'
+                                }`}>
+                                    {t.status}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+      )}
+      
+      {/* CSS animation for scanner line */}
+      <style jsx global>{`
+        @keyframes scan {
+          0% { top: 0; opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }
-

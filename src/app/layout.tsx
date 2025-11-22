@@ -37,10 +37,11 @@ export default async function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[var(--hh-bg)] text-[var(--hh-text)]`}>
         {isAuthed ? <Sidebar /> : null}
         <main
-          className="min-h-screen m-4 px-4 py-4 md:px-10 md:py-10 w-full min-w-0"
-          style={{ paddingLeft: "var(--sidebar-w, 0px)" }}
+          className={`min-h-screen w-full transition-all duration-300 ${isAuthed ? 'lg:pl-64' : ''}`}
         >
-          {children}
+          <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">
+            {children}
+          </div>
         </main>
       </body>
     </html>

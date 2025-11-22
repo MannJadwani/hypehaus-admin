@@ -14,45 +14,56 @@
   --hh-text: rgba(255,255,255,0.95);
   --hh-text-secondary: rgba(255,255,255,0.7);
   --hh-text-tertiary: rgba(255,255,255,0.6);
-  --hh-border: rgba(255,255,255,0.06);
-  --hh-border-light: rgba(255,255,255,0.08);
+  --hh-border: rgba(255,255,255,0.08);
+  --hh-border-light: rgba(255,255,255,0.12);
 
-  --hh-radius: 22px;
-  --hh-radius-card: 18px;
+  --hh-radius: 12px;
+  --hh-radius-card: 16px;
 }
 
 html, body {
   background: var(--hh-bg);
   color: var(--hh-text);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Basic components aligning to brand guide */
-.hh-card {
-  background: var(--hh-bg-card);
-  border: 1px solid var(--hh-border);
-  border-radius: var(--hh-radius-card);
-}
+@layer utilities {
+  .hh-card {
+    background: var(--hh-bg-card);
+    border: 1px solid var(--hh-border);
+    border-radius: var(--hh-radius-card);
+  }
 
-.hh-btn-primary {
-  background: linear-gradient(135deg, var(--hh-primary-dark), var(--hh-primary-light));
-  color: var(--hh-text);
-  border-radius: var(--hh-radius);
-  padding: 0.75rem 1rem;
-  box-shadow: 0 4px 12px rgba(139,92,246,0.4);
-}
+  .hh-btn-primary {
+    @apply px-4 py-2 rounded-xl font-medium transition-all duration-200 active:scale-95;
+    background: var(--hh-primary);
+    color: white;
+    box-shadow: 0 4px 12px rgba(139,92,246,0.25);
+  }
+  .hh-btn-primary:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 6px 16px rgba(139,92,246,0.35);
+  }
 
-.hh-btn-secondary {
-  background: rgba(20,21,25,0.75);
-  border: 1px solid var(--hh-border-light);
-  color: var(--hh-text);
-  border-radius: var(--hh-radius);
-  padding: 0.6rem 0.9rem;
-}
+  .hh-btn-secondary {
+    @apply px-4 py-2 rounded-xl font-medium transition-all duration-200 active:scale-95;
+    background: var(--hh-bg-elevated);
+    border: 1px solid var(--hh-border);
+    color: var(--hh-text);
+  }
+  .hh-btn-secondary:hover {
+    background: var(--hh-bg-input);
+    border-color: var(--hh-border-light);
+  }
 
-.hh-input {
-  background: var(--hh-bg-input);
-  border: 1px solid var(--hh-border-light);
-  color: var(--hh-text);
-  border-radius: 12px;
+  .hh-input {
+    @apply px-4 py-2.5 rounded-xl outline-none transition-all duration-200;
+    background: var(--hh-bg-input);
+    border: 1px solid var(--hh-border);
+    color: var(--hh-text);
+  }
+  .hh-input:focus {
+    border-color: var(--hh-primary);
+    box-shadow: 0 0 0 2px rgba(139,92,246,0.2);
+  }
 }
-
