@@ -38,9 +38,13 @@ export default function NewEventPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' } | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isValidatingStep, setIsValidatingStep] = useState(false);
 
   useEffect(() => {
     // Load current user role
+    setIsLoadingUser(true);
     fetch('/api/admin/me')
       .then(res => res.json())
       .then(data => {
@@ -52,7 +56,12 @@ export default function NewEventPage() {
           }
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setError('Failed to load user information');
+      })
+      .finally(() => {
+        setIsLoadingUser(false);
+      });
   }, [router]);
 
   const { register, handleSubmit, setValue, watch, trigger, formState: { errors, isSubmitting } } = useForm<EventCreateInput>({
@@ -79,53 +88,74 @@ export default function NewEventPage() {
   const heroUrl = watch('hero_image_url');
 
   const uploadHero = async (file: File) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    const res = await fetch('/api/upload', { method: 'POST', body: fd });
-    if (res.ok) {
-      const data = await res.json();
-      setValue('hero_image_url', data.url, { shouldValidate: true, shouldDirty: true });
+    setIsUploadingImage(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      if (res.ok) {
+        const data = await res.json();
+        setValue('hero_image_url', data.url, { shouldValidate: true, shouldDirty: true });
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        setError(errorData?.error ?? 'Failed to upload image. Please try again.');
+      }
+    } catch (err) {
+      setError('Failed to upload image. Please check your connection and try again.');
+    } finally {
+      setIsUploadingImage(false);
     }
   };
 
   const onSubmit = async (values: EventCreateInput) => {
     setError(null);
-    const res = await fetch('/api/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(values),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      router.push(`/events/${data.event.id}`);
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data?.error ?? 'Failed to create event. Only admins can create events.');
+    try {
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        router.push(`/events/${data.event.id}`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error ?? 'Failed to create event. Please check all fields and try again.');
+      }
+    } catch (err) {
+      setError('Network error. Please check your connection and try again.');
     }
   };
 
   const nextStep = async () => {
-    let fieldsToValidate: (keyof EventCreateInput)[] = [];
-    
-    switch (currentStep) {
-      case 0: // Basic
-        fieldsToValidate = ['title', 'description', 'category', 'status'];
-        break;
-      case 1: // Media
-        fieldsToValidate = ['hero_image_url'];
-        break;
-      case 2: // Schedule
-        fieldsToValidate = ['start_at', 'end_at', 'venue_name', 'city', 'address_line', 'latitude', 'longitude'];
-        break;
-      case 3: // Pricing
-        // No specific validation needed to proceed, ready to submit
-        break;
-    }
+    setIsValidatingStep(true);
+    setError(null);
+    try {
+      let fieldsToValidate: (keyof EventCreateInput)[] = [];
+      
+      switch (currentStep) {
+        case 0: // Basic
+          fieldsToValidate = ['title', 'description', 'category', 'status'];
+          break;
+        case 1: // Media
+          fieldsToValidate = ['hero_image_url'];
+          break;
+        case 2: // Schedule
+          fieldsToValidate = ['start_at', 'end_at', 'venue_name', 'city', 'address_line', 'latitude', 'longitude'];
+          break;
+        case 3: // Pricing
+          // No specific validation needed to proceed, ready to submit
+          break;
+      }
 
-    const isValid = await trigger(fieldsToValidate);
-    if (isValid) {
-      setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const isValid = await trigger(fieldsToValidate);
+      if (isValid) {
+        setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } finally {
+      setIsValidatingStep(false);
     }
   };
 
@@ -135,12 +165,12 @@ export default function NewEventPage() {
   };
 
   // Show loading or redirect if not admin
-  if (!currentUser) {
+  if (isLoadingUser || !currentUser) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-[var(--hh-primary)] border-t-transparent rounded-full animate-spin"></div>
-        <div className="text-[var(--hh-text-secondary)]">Loading...</div>
+          <div className="text-[var(--hh-text-secondary)]">Loading...</div>
         </div>
       </div>
     );
@@ -275,9 +305,20 @@ export default function NewEventPage() {
             </h2>
           <div>
               <label className="block text-sm font-medium mb-3 text-[var(--hh-text-secondary)]">Hero Image</label>
-              <div className="border-2 border-dashed border-[var(--hh-border)] rounded-xl p-6 hover:border-[var(--hh-primary)]/50 transition-colors bg-[var(--hh-bg-elevated)]/30">
+              <div className={`border-2 border-dashed rounded-xl p-6 transition-colors bg-[var(--hh-bg-elevated)]/30 ${
+                isUploadingImage 
+                  ? 'border-[var(--hh-primary)] cursor-wait' 
+                  : 'border-[var(--hh-border)] hover:border-[var(--hh-primary)]/50'
+              }`}>
                 <div className="flex flex-col items-center gap-4">
-                  {heroUrl ? (
+                  {isUploadingImage ? (
+                    <div className="w-full aspect-video rounded-lg overflow-hidden bg-black/20 flex items-center justify-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-2 border-[var(--hh-primary)] border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-[var(--hh-text-secondary)] text-sm">Uploading image...</p>
+                      </div>
+                    </div>
+                  ) : heroUrl ? (
                     <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black/20">
                       <img src={heroUrl} alt="Hero preview" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -301,10 +342,11 @@ export default function NewEventPage() {
               <input
                 type="file"
                 accept="image/*"
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                disabled={isUploadingImage}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-wait"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) uploadHero(f);
+                  if (f && !isUploadingImage) uploadHero(f);
                 }}
               />
                 </div>
@@ -467,8 +509,8 @@ export default function NewEventPage() {
           <button 
             type="button" 
             onClick={prevStep} 
-            disabled={currentStep === 0}
-            className={`hh-btn-secondary px-6 ${currentStep === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={currentStep === 0 || isValidatingStep || isSubmitting}
+            className={`hh-btn-secondary px-6 ${currentStep === 0 || isValidatingStep || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Back
           </button>
@@ -478,22 +520,32 @@ export default function NewEventPage() {
               <button 
                 type="button" 
                 onClick={nextStep}
-                className="hh-btn-primary px-8 min-w-[120px]"
+                disabled={isValidatingStep}
+                className="hh-btn-primary px-8 min-w-[120px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Next Step
+                {isValidatingStep ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>Validating...</span>
+                  </>
+                ) : (
+                  'Next Step'
+                )}
               </button>
             ) : (
               <button 
                 type="submit" 
                 disabled={isSubmitting} 
-                className="hh-btn-primary px-8 min-w-[120px] flex justify-center"
+                className="hh-btn-primary px-8 min-w-[120px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
-          <div className="flex items-center gap-2">
+                  <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                     <span>Creating...</span>
-                  </div>
-                ) : 'Create Event'}
+                  </>
+                ) : (
+                  'Create Event'
+                )}
               </button>
             )}
           </div>
