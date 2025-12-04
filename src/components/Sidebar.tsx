@@ -30,7 +30,7 @@ export default function Sidebar() {
         if (isCollapsed) {
             main.classList.add('lg:pl-20');
             main.classList.remove('lg:pl-64');
-        } else {
+      } else {
             main.classList.remove('lg:pl-20');
             main.classList.add('lg:pl-64');
         }

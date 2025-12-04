@@ -228,13 +228,13 @@ export default function EventsPage() {
                     </svg>
                     Columns
                 </button>
-                {showColsPanel && (
+        {showColsPanel && (
                 <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowColsPanel(false)}></div>
                     <div className="absolute right-0 top-full mt-2 z-20 hh-card p-4 w-64 shadow-xl shadow-black/50 animate-in fade-in zoom-in-95 duration-100">
                         <div className="text-[var(--hh-text)] font-medium text-sm mb-3">Visible Columns</div>
                         <div className="space-y-2">
-                        {allColumns.filter(c=>c.id!=='actions').map((c) => (
+              {allColumns.filter(c=>c.id!=='actions').map((c) => (
                             <label key={c.id} className="flex items-center gap-3 text-sm p-2 hover:bg-[var(--hh-bg-elevated)] rounded-lg cursor-pointer transition-colors">
                             <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${visibleCols.includes(c.id) ? 'bg-[var(--hh-primary)] border-[var(--hh-primary)]' : 'border-[var(--hh-text-tertiary)]'}`}>
                                 {visibleCols.includes(c.id) && (
@@ -245,12 +245,12 @@ export default function EventsPage() {
                             </div>
                             <input type="checkbox" className="hidden" checked={visibleCols.includes(c.id)} onChange={() => toggleCol(c.id)} />
                             <span className="text-[var(--hh-text-secondary)]">{c.header}</span>
-                            </label>
-                        ))}
-                        </div>
-                    </div>
+                </label>
+              ))}
+            </div>
+          </div>
                 </>
-                )}
+        )}
             </div>
           <button onClick={exportCsv} className="hh-btn-secondary flex items-center gap-2 text-sm">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -288,14 +288,14 @@ export default function EventsPage() {
             <div className="flex flex-col sm:flex-row gap-3">
                 <select value={status} onChange={(e)=>setStatus(e.target.value as any)} className="hh-input min-w-[140px]">
                     <option value="all">Status: All</option>
-                    <option value="draft">Draft</option>
-                    <option value="published">Published</option>
-                    <option value="archived">Archived</option>
-                </select>
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+            <option value="archived">Archived</option>
+          </select>
                 <select value={category} onChange={(e)=>setCategory(e.target.value)} className="hh-input min-w-[140px]">
                     <option value="all">Category: All</option>
-                    {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+            {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
             </div>
         </div>
         
@@ -308,8 +308,8 @@ export default function EventsPage() {
              </div>
              <select value={city} onChange={(e)=>setCity(e.target.value)} className="hh-input py-1.5 text-sm min-w-[120px]">
                 <option value="all">City: All</option>
-                {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
             <div className="flex items-center gap-2 bg-[var(--hh-bg-input)] border border-[var(--hh-border)] rounded-xl px-3 py-1.5">
                 <span className="text-xs text-[var(--hh-text-tertiary)] uppercase font-bold">From</span>
                 <input type="date" value={from} onChange={(e)=>setFrom(e.target.value)} className="bg-transparent text-sm text-[var(--hh-text)] outline-none w-[110px] appearance-none" />
@@ -317,7 +317,7 @@ export default function EventsPage() {
             <div className="flex items-center gap-2 bg-[var(--hh-bg-input)] border border-[var(--hh-border)] rounded-xl px-3 py-1.5">
                 <span className="text-xs text-[var(--hh-text-tertiary)] uppercase font-bold">To</span>
                 <input type="date" value={to} onChange={(e)=>setTo(e.target.value)} className="bg-transparent text-sm text-[var(--hh-text)] outline-none w-[110px] appearance-none" />
-            </div>
+          </div>
             {(q || status !== 'all' || category !== 'all' || city !== 'all' || from || to) && (
                 <button 
                     onClick={() => {
@@ -359,7 +359,7 @@ export default function EventsPage() {
                         <svg className="w-6 h-6 text-[var(--hh-text-tertiary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                    </div>
+                  </div>
                     <h3 className="text-[var(--hh-text)] font-medium">No events found</h3>
                     <p className="text-[var(--hh-text-secondary)] text-sm mt-1">Try adjusting your search or filters</p>
                 </div>
@@ -412,16 +412,16 @@ export default function EventsPage() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
                             </Link>
-                            {currentUser?.role === 'admin' && (
+                    {currentUser?.role === 'admin' && (
                                 <button onClick={() => destroy(e)} className="p-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20">
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
                                 </button>
-                            )}
+                    )}
                         </div>
                         <Link href={`/events/${e.id}/attendees`} className="hh-btn-primary text-xs px-4 py-2">View Attendees</Link>
-                    </div>
+                  </div>
                 </div>
                 ))
             )}

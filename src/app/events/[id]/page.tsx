@@ -294,7 +294,20 @@ export default function EditEventPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Base Price (cents)</label>
-            <input type="number" className="w-full hh-input px-3 py-2 text-sm" {...register('base_price_cents', { valueAsNumber: true })} />
+            <input 
+              type="number" 
+              className="w-full hh-input px-3 py-2 text-sm" 
+              {...register('base_price_cents', { 
+                valueAsNumber: true,
+                setValueAs: (v) => {
+                  if (v === '' || v === null || v === undefined || isNaN(v)) {
+                    return undefined;
+                  }
+                  const num = Number(v);
+                  return isNaN(num) ? undefined : num;
+                }
+              })} 
+            />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Currency</label>

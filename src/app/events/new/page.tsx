@@ -69,7 +69,7 @@ export default function NewEventPage() {
       city: '',
       latitude: undefined,
       longitude: undefined,
-      base_price_cents: 0,
+      base_price_cents: undefined,
       currency: 'INR',
       status: 'draft',
       allow_cab: false,
@@ -140,7 +140,7 @@ export default function NewEventPage() {
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-[var(--hh-primary)] border-t-transparent rounded-full animate-spin"></div>
-          <div className="text-[var(--hh-text-secondary)]">Loading...</div>
+        <div className="text-[var(--hh-text-secondary)]">Loading...</div>
         </div>
       </div>
     );
@@ -243,14 +243,14 @@ export default function NewEventPage() {
                   />
                 </div>
 
-                <div>
+          <div>
                   <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Category</label>
                   <select className="hh-input w-full appearance-none" {...register('category')}>
                     <option value="">Select category...</option>
-                    {categories.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+              {categories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
                   {errors.category && <p className="mt-1.5 text-xs text-red-400">{errors.category.message}</p>}
                 </div>
 
@@ -273,7 +273,7 @@ export default function NewEventPage() {
             <h2 className="text-lg font-bold text-[var(--hh-text)] mb-6 flex items-center gap-2">
               {steps[1].icon} Event Media
             </h2>
-            <div>
+          <div>
               <label className="block text-sm font-medium mb-3 text-[var(--hh-text-secondary)]">Hero Image</label>
               <div className="border-2 border-dashed border-[var(--hh-border)] rounded-xl p-6 hover:border-[var(--hh-primary)]/50 transition-colors bg-[var(--hh-bg-elevated)]/30">
                 <div className="flex flex-col items-center gap-4">
@@ -298,15 +298,15 @@ export default function NewEventPage() {
                       <p className="text-xs text-[var(--hh-text-tertiary)]">PNG, JPG, GIF up to 10MB</p>
                     </div>
                   )}
-                  <input
-                    type="file"
-                    accept="image/*"
+              <input
+                type="file"
+                accept="image/*"
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) uploadHero(f);
-                    }}
-                  />
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadHero(f);
+                }}
+              />
                 </div>
               </div>
               <input type="hidden" {...register('hero_image_url')} />
@@ -323,7 +323,7 @@ export default function NewEventPage() {
             </h2>
             <div className="grid gap-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
+          <div>
                   <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Start Date & Time</label>
                   <input 
                     type="datetime-local" 
@@ -331,8 +331,8 @@ export default function NewEventPage() {
                     {...register('start_at')} 
                   />
                   {errors.start_at && <p className="mt-1.5 text-xs text-red-400">{errors.start_at.message}</p>}
-                </div>
-                <div>
+          </div>
+          <div>
                   <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">End Date & Time</label>
                   <input 
                     type="datetime-local" 
@@ -340,11 +340,11 @@ export default function NewEventPage() {
                     {...register('end_at')} 
                   />
                   {errors.end_at && <p className="mt-1.5 text-xs text-red-400">{errors.end_at.message}</p>}
-                </div>
-              </div>
+          </div>
+        </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
+          <div>
                   <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Venue Name</label>
                   <input 
                     className="hh-input w-full" 
@@ -352,8 +352,8 @@ export default function NewEventPage() {
                     {...register('venue_name')} 
                   />
                   {errors.venue_name && <p className="mt-1.5 text-xs text-red-400">{errors.venue_name.message}</p>}
-                </div>
-                <div>
+          </div>
+          <div>
                   <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">City</label>
                   <input 
                     className="hh-input w-full" 
@@ -361,10 +361,10 @@ export default function NewEventPage() {
                     {...register('city')} 
                   />
                   {errors.city && <p className="mt-1.5 text-xs text-red-400">{errors.city.message}</p>}
-                </div>
-              </div>
+          </div>
+        </div>
 
-              <div>
+        <div>
                 <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Full Address</label>
                 <input 
                   className="hh-input w-full" 
@@ -372,10 +372,10 @@ export default function NewEventPage() {
                   {...register('address_line')} 
                 />
                 {errors.address_line && <p className="mt-1.5 text-xs text-red-400">{errors.address_line.message}</p>}
-              </div>
+        </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-[var(--hh-bg-elevated)]/30 rounded-xl border border-[var(--hh-border)]">
-                <div>
+          <div>
                   <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Latitude</label>
                   <input 
                     type="number" 
@@ -384,8 +384,8 @@ export default function NewEventPage() {
                     placeholder="19.0760"
                     {...register('latitude', { valueAsNumber: true })} 
                   />
-                </div>
-                <div>
+          </div>
+          <div>
                   <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Longitude</label>
                   <input 
                     type="number" 
@@ -411,22 +411,31 @@ export default function NewEventPage() {
             </h2>
             <div className="grid gap-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
+          <div>
                   <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Base Price (cents)</label>
                   <div className="relative">
                     <input 
                       type="number" 
                       className="hh-input w-full" 
                       placeholder="0"
-                      {...register('base_price_cents', { valueAsNumber: true })} 
+                      {...register('base_price_cents', { 
+                        valueAsNumber: true,
+                        setValueAs: (v) => {
+                          if (v === '' || v === null || v === undefined || isNaN(v)) {
+                            return undefined;
+                          }
+                          const num = Number(v);
+                          return isNaN(num) ? undefined : num;
+                        }
+                      })} 
                     />
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                       <span className="text-[var(--hh-text-tertiary)] text-xs">paise</span>
                     </div>
                   </div>
                   <p className="mt-1 text-xs text-[var(--hh-text-tertiary)]">e.g. 1000 = ₹10.00</p>
-                </div>
-                <div>
+          </div>
+          <div>
                   <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Currency</label>
                   <input 
                     className="hh-input w-full uppercase" 
@@ -449,7 +458,7 @@ export default function NewEventPage() {
                   <p className="text-[var(--hh-text-secondary)] mt-0.5">Allow customers to request a cab ride when booking their tickets.</p>
                 </div>
               </div>
-            </div>
+          </div>
           </div>
         </div>
 
@@ -480,7 +489,7 @@ export default function NewEventPage() {
                 className="hh-btn-primary px-8 min-w-[120px] flex justify-center"
               >
                 {isSubmitting ? (
-                  <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                     <span>Creating...</span>
                   </div>

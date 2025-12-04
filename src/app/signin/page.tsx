@@ -51,7 +51,7 @@ export default function SignInPage() {
           )}
           
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div>
+          <div>
               <label className="block text-sm font-medium text-[var(--hh-text-secondary)] mb-1.5">Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -59,17 +59,17 @@ export default function SignInPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                   </svg>
                 </div>
-                <input
-                  type="email"
+            <input
+              type="email"
                   className="hh-input w-full pl-10"
                   placeholder="admin@hypehaus.com"
-                  {...register('email')}
-                />
+              {...register('email')}
+            />
               </div>
               {errors.email && <p className="mt-1.5 text-xs text-red-400">{errors.email.message}</p>}
-            </div>
+          </div>
             
-            <div>
+          <div>
               <label className="block text-sm font-medium text-[var(--hh-text-secondary)] mb-1.5">Password</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -77,21 +77,21 @@ export default function SignInPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                 </div>
-                <input
-                  type="password"
+            <input
+              type="password"
                   className="hh-input w-full pl-10"
-                  placeholder="••••••••"
-                  {...register('password')}
-                />
+              placeholder="••••••••"
+              {...register('password')}
+            />
               </div>
               {errors.password && <p className="mt-1.5 text-xs text-red-400">{errors.password.message}</p>}
-            </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
+          <button
+            type="submit"
+            disabled={isSubmitting}
               className="w-full hh-btn-primary mt-2 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
+          >
               {isSubmitting ? (
                 <>
                   <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -103,8 +103,8 @@ export default function SignInPage() {
               ) : (
                 'Sign In'
               )}
-            </button>
-          </form>
+          </button>
+        </form>
         </div>
       </div>
     </div>

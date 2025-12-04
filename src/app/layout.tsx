@@ -40,7 +40,7 @@ export default async function RootLayout({
           className={`min-h-screen w-full transition-all duration-300 ${isAuthed ? 'lg:pl-64' : ''}`}
         >
           <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">
-            {children}
+          {children}
           </div>
         </main>
       </body>

@@ -28,13 +28,13 @@ html, body {
 }
 
 @layer utilities {
-  .hh-card {
-    background: var(--hh-bg-card);
-    border: 1px solid var(--hh-border);
-    border-radius: var(--hh-radius-card);
-  }
+.hh-card {
+  background: var(--hh-bg-card);
+  border: 1px solid var(--hh-border);
+  border-radius: var(--hh-radius-card);
+}
 
-  .hh-btn-primary {
+.hh-btn-primary {
     @apply px-4 py-2 rounded-xl font-medium transition-all duration-200 active:scale-95;
     background: var(--hh-primary);
     color: white;
@@ -43,27 +43,27 @@ html, body {
   .hh-btn-primary:hover {
     filter: brightness(1.1);
     box-shadow: 0 6px 16px rgba(139,92,246,0.35);
-  }
+}
 
-  .hh-btn-secondary {
+.hh-btn-secondary {
     @apply px-4 py-2 rounded-xl font-medium transition-all duration-200 active:scale-95;
     background: var(--hh-bg-elevated);
     border: 1px solid var(--hh-border);
-    color: var(--hh-text);
+  color: var(--hh-text);
   }
   .hh-btn-secondary:hover {
     background: var(--hh-bg-input);
     border-color: var(--hh-border-light);
-  }
+}
 
-  .hh-input {
+.hh-input {
     @apply px-4 py-2.5 rounded-xl outline-none transition-all duration-200;
-    background: var(--hh-bg-input);
+  background: var(--hh-bg-input);
     border: 1px solid var(--hh-border);
-    color: var(--hh-text);
+  color: var(--hh-text);
   }
   .hh-input:focus {
     border-color: var(--hh-primary);
     box-shadow: 0 0 0 2px rgba(139,92,246,0.2);
-  }
+}
 }

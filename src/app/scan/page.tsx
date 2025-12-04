@@ -139,30 +139,30 @@ export default function ScanPage() {
             // Draw current frame
             canvas.width = videoRef.current.videoWidth;
             canvas.height = videoRef.current.videoHeight;
-            context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+          context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
             
-            canvas.toBlob((blob) => {
-                if (!blob || !scannerRef.current) {
-                    scanBusyRef.current = false;
-                    rafIdRef.current = requestAnimationFrame(scanLoop);
-                    return;
-                }
+          canvas.toBlob((blob) => {
+            if (!blob || !scannerRef.current) {
+              scanBusyRef.current = false;
+              rafIdRef.current = requestAnimationFrame(scanLoop);
+              return;
+            }
 
-                const file = new File([blob], 'frame.png', { type: 'image/png' });
+            const file = new File([blob], 'frame.png', { type: 'image/png' });
                 scannerRef.current.scanFile(file, false)
-                    .then((decodedText) => {
-                        handleScanSuccess(decodedText);
-                    })
+              .then((decodedText) => {
+                handleScanSuccess(decodedText);
+              })
                     .catch(() => {
                          // No QR code found, continue scanning
-                         scanBusyRef.current = false;
-                         rafIdRef.current = requestAnimationFrame(scanLoop);
-                    });
-            }, 'image/png');
+                scanBusyRef.current = false;
+                  rafIdRef.current = requestAnimationFrame(scanLoop);
+              });
+          }, 'image/png');
 
         } catch (e) {
-            scanBusyRef.current = false;
-            rafIdRef.current = requestAnimationFrame(scanLoop);
+          scanBusyRef.current = false;
+          rafIdRef.current = requestAnimationFrame(scanLoop);
         }
       };
 
@@ -302,14 +302,14 @@ export default function ScanPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 Open Camera
-             </button>
+                </button>
              <button onClick={() => setManualEntry(true)} className="hh-btn-secondary py-3 flex-1 flex items-center justify-center gap-2 text-base">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
                 Manual Entry
-             </button>
-          </div>
+                </button>
+              </div>
           {error && (
              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
                 {error}
@@ -322,13 +322,13 @@ export default function ScanPage() {
       {scanning && (
         <div className="fixed inset-0 z-50 bg-black flex flex-col">
           <div className="relative flex-1 overflow-hidden">
-             <video
-                ref={videoRef}
+                  <video
+                    ref={videoRef}
                 autoPlay playsInline muted
                 className="absolute inset-0 w-full h-full object-cover"
-             />
-             <canvas ref={canvasRef} className="hidden" />
-             <div id="qr-hidden" className="hidden" />
+                  />
+                  <canvas ref={canvasRef} className="hidden" />
+                  <div id="qr-hidden" className="hidden" />
              
              {/* Overlay */}
              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center p-8">
@@ -347,47 +347,47 @@ export default function ScanPage() {
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
-             </button>
-          </div>
-        </div>
-      )}
+                </button>
+              </div>
+              </div>
+            )}
 
       {/* Manual Entry View */}
-      {manualEntry && !result && (
+        {manualEntry && !result && (
         <div className="hh-card p-6 md:p-8 max-w-xl mx-auto">
            <h2 className="text-xl font-bold text-[var(--hh-text)] mb-6">Manual Verification</h2>
-           <div className="space-y-4">
-              <div>
+          <div className="space-y-4">
+            <div>
                  <label className="block text-sm font-medium mb-2 text-[var(--hh-text-secondary)]">QR Code Data</label>
-                 <textarea
-                    value={manualQrData}
-                    onChange={(e) => setManualQrData(e.target.value)}
+              <textarea
+                value={manualQrData}
+                onChange={(e) => setManualQrData(e.target.value)}
                     placeholder='Paste the raw QR code data here...'
                     className="hh-input w-full font-mono text-sm min-h-[150px]"
-                 />
-              </div>
+              />
+            </div>
               <div className="flex gap-3 pt-2">
                  <button onClick={handleManualSubmit} className="hh-btn-primary flex-1 justify-center">Verify</button>
                  <button onClick={() => setManualEntry(false)} className="hh-btn-secondary flex-1 justify-center">Cancel</button>
-              </div>
-              {error && (
+            </div>
+            {error && (
                 <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm flex items-center gap-2">
                     <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     {error}
-                </div>
-              )}
+              </div>
+            )}
            </div>
-        </div>
-      )}
+          </div>
+        )}
 
       {/* Result View */}
-      {result && (
+        {result && (
         <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
             {/* Status Banner */}
             <div className={`p-6 rounded-2xl border flex flex-col md:flex-row items-center gap-6 text-center md:text-left ${
-                result.success 
+                result.success
                 ? 'bg-green-500/10 border-green-500/20 text-green-400' 
                 : 'bg-red-500/10 border-red-500/20 text-red-400'
             }`}>
@@ -428,27 +428,27 @@ export default function ScanPage() {
                             Attendee
                         </h3>
                         <div className="space-y-4">
-                             <div>
+                    <div>
                                  <div className="text-sm text-[var(--hh-text-secondary)]">Name</div>
                                  <div className="text-xl font-medium text-[var(--hh-text)]">{result.ticket.attendee_name}</div>
-                             </div>
+                    </div>
                              <div className="flex gap-4">
-                                 <div>
+                    <div>
                                      <div className="text-sm text-[var(--hh-text-secondary)]">Tier</div>
                                      <div className="text-[var(--hh-text)] font-medium">{result.ticket.tier?.name || 'Standard'}</div>
-                                 </div>
-                                 <div>
+                    </div>
+                    <div>
                                      <div className="text-sm text-[var(--hh-text-secondary)]">Status</div>
                                      <div className="capitalize font-medium">{result.ticket.status}</div>
-                                 </div>
-                             </div>
-                             <div>
+                    </div>
+                    </div>
+                    <div>
                                  <div className="text-sm text-[var(--hh-text-secondary)]">Ticket ID</div>
                                  <div className="font-mono text-sm text-[var(--hh-text-tertiary)] bg-[var(--hh-bg-input)] px-2 py-1 rounded inline-block">
                                      {result.ticket.id}
-                                 </div>
-                             </div>
-                        </div>
+                    </div>
+                  </div>
+                </div>
                     </div>
 
                     {/* Event Info */}
@@ -460,7 +460,7 @@ export default function ScanPage() {
                             Event Details
                         </h3>
                         <div className="space-y-3">
-                            <div>
+                      <div>
                                 <div className="text-lg font-medium text-[var(--hh-text)]">{result.event.title}</div>
                                 <div className="text-sm text-[var(--hh-text-secondary)]">{formatDate(result.event.start_at)}</div>
                             </div>
@@ -471,12 +471,12 @@ export default function ScanPage() {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                                     </svg>
                                     {result.event.venue_name}, {result.event.city}
-                                </div>
-                            )}
+                      </div>
+                    )}
                         </div>
-                    </div>
-                </div>
-            )}
+                  </div>
+                      </div>
+                    )}
 
             {/* Group Tickets in same order */}
             {result.allTickets && result.allTickets.length > 1 && (
@@ -485,24 +485,24 @@ export default function ScanPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {result.allTickets.filter(t => t.id !== result.ticket?.id).map(t => (
                             <div key={t.id} className="p-3 rounded-xl bg-[var(--hh-bg-elevated)] border border-[var(--hh-border)] flex items-center justify-between">
-                                <div>
+                    <div>
                                     <div className="font-medium text-[var(--hh-text)]">{t.attendee_name}</div>
                                     <div className="text-xs text-[var(--hh-text-secondary)]">{t.tier?.name}</div>
-                                </div>
+                    </div>
                                 <span className={`text-xs px-2 py-1 rounded-full capitalize border ${
                                     t.status === 'used' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
                                     t.status === 'valid' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 
                                     'bg-[var(--hh-bg-input)] text-[var(--hh-text-tertiary)] border-[var(--hh-border)]'
                                 }`}>
                                     {t.status}
-                                </span>
-                            </div>
-                        ))}
+                            </span>
+                        </div>
+                      ))}
                     </div>
-                </div>
+                  </div>
+                )}
+              </div>
             )}
-        </div>
-      )}
       
       {/* CSS animation for scanner line */}
       <style jsx global>{`

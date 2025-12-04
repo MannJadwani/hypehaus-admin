@@ -17,7 +17,16 @@ export const EventBaseSchema = z.object({
   city: z.string().optional().nullable(),
   latitude: z.number().optional().nullable(),
   longitude: z.number().optional().nullable(),
-  base_price_cents: z.number().int().nonnegative().optional(),
+  base_price_cents: z.preprocess(
+    (val) => {
+      // Convert NaN, undefined, or empty string to null
+      if (val === null || val === undefined || val === '' || (typeof val === 'number' && isNaN(val))) {
+        return null;
+      }
+      return val;
+    },
+    z.number().int().nonnegative().max(2147483647).nullable().optional()
+  ),
   currency: z.string().length(3).optional(),
   status: z.enum(['draft', 'published', 'archived']).optional(),
   allow_cab: z.boolean().optional(),

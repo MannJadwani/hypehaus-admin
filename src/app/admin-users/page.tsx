@@ -167,32 +167,32 @@ export default function AdminUsersPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Add User
-        </button>
-      </div>
+          </button>
+        </div>
 
-      {error && (
+        {error && (
         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 flex items-center gap-3">
           <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          {error}
-        </div>
-      )}
+            {error}
+          </div>
+        )}
 
       <div className="hh-card overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+          <div className="overflow-x-auto">
+            <table className="w-full">
             <thead className="bg-[var(--hh-bg-elevated)]/50 border-b border-[var(--hh-border)]">
-              <tr>
+                <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">User</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">Role</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">Joined</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
+                </tr>
+              </thead>
             <tbody className="divide-y divide-[var(--hh-border)]">
-              {users.length === 0 ? (
-                <tr>
+                {users.length === 0 ? (
+                  <tr>
                   <td colSpan={4} className="px-6 py-12 text-center text-[var(--hh-text-secondary)]">
                     <div className="flex flex-col items-center gap-2">
                       <svg className="w-10 h-10 text-[var(--hh-text-tertiary)] opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -200,10 +200,10 @@ export default function AdminUsersPage() {
                       </svg>
                       <span>No admin users found</span>
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                users.map((user) => (
+                    </td>
+                  </tr>
+                ) : (
+                  users.map((user) => (
                   <tr key={user.id} className="hover:bg-[var(--hh-bg-elevated)]/30 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
@@ -215,48 +215,48 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                        user.role === 'admin' 
+                          user.role === 'admin' 
                           ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' 
                           : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                      }`}>
+                        }`}>
                         {user.role === 'admin' ? 'Administrator' : 'Moderator'}
-                      </span>
-                    </td>
+                        </span>
+                      </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--hh-text-secondary)]">
                       {new Date(user.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                    </td>
+                      </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => startEdit(user)}
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => startEdit(user)}
                           className="p-1.5 rounded-lg text-[var(--hh-text-secondary)] hover:text-[var(--hh-primary)] hover:bg-[var(--hh-primary)]/10 transition-colors"
                           title="Edit user"
-                        >
+                          >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirm(user.id)}
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm(user.id)}
                           className="p-1.5 rounded-lg text-[var(--hh-text-secondary)] hover:text-red-400 hover:bg-red-500/10 transition-colors"
                           title="Delete user"
-                        >
+                          >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
-      {/* Create Modal */}
-      {showCreateModal && (
+        {/* Create Modal */}
+        {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all">
           <div className="hh-card max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-6">
@@ -268,60 +268,60 @@ export default function AdminUsersPage() {
               </button>
             </div>
             
-            <form onSubmit={createForm.handleSubmit(onCreate)} className="space-y-4">
-              <div>
+              <form onSubmit={createForm.handleSubmit(onCreate)} className="space-y-4">
+                <div>
                 <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Email Address</label>
-                <input
-                  {...createForm.register('email')}
-                  type="email"
-                  className="hh-input w-full"
-                  placeholder="admin@example.com"
-                />
-                {createForm.formState.errors.email && (
-                  <p className="mt-1 text-xs text-red-400">{createForm.formState.errors.email.message}</p>
-                )}
-              </div>
-              <div>
+                  <input
+                    {...createForm.register('email')}
+                    type="email"
+                    className="hh-input w-full"
+                    placeholder="admin@example.com"
+                  />
+                  {createForm.formState.errors.email && (
+                    <p className="mt-1 text-xs text-red-400">{createForm.formState.errors.email.message}</p>
+                  )}
+                </div>
+                <div>
                 <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Password</label>
-                <input
-                  {...createForm.register('password')}
-                  type="password"
-                  className="hh-input w-full"
-                  placeholder="Minimum 6 characters"
-                />
-                {createForm.formState.errors.password && (
-                  <p className="mt-1 text-xs text-red-400">{createForm.formState.errors.password.message}</p>
-                )}
-              </div>
-              <div>
+                  <input
+                    {...createForm.register('password')}
+                    type="password"
+                    className="hh-input w-full"
+                    placeholder="Minimum 6 characters"
+                  />
+                  {createForm.formState.errors.password && (
+                    <p className="mt-1 text-xs text-red-400">{createForm.formState.errors.password.message}</p>
+                  )}
+                </div>
+                <div>
                 <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Role</label>
-                <select {...createForm.register('role')} className="hh-input w-full">
+                  <select {...createForm.register('role')} className="hh-input w-full">
                   <option value="admin">Admin (Full Access)</option>
                   <option value="moderator">Moderator (Limited Access)</option>
-                </select>
-              </div>
+                  </select>
+                </div>
               <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    createForm.reset();
-                    setShowCreateModal(false);
-                  }}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      createForm.reset();
+                      setShowCreateModal(false);
+                    }}
                   className="hh-btn-secondary flex-1 justify-center"
-                >
-                  Cancel
-                </button>
+                  >
+                    Cancel
+                  </button>
                 <button type="submit" className="hh-btn-primary flex-1 justify-center" disabled={createForm.formState.isSubmitting}>
                   {createForm.formState.isSubmitting ? 'Creating...' : 'Create User'}
-                </button>
-              </div>
-            </form>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Edit Modal */}
-      {editingUser && (
+        {/* Edit Modal */}
+        {editingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all">
           <div className="hh-card max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-6">
@@ -333,61 +333,61 @@ export default function AdminUsersPage() {
               </button>
             </div>
 
-            <form onSubmit={updateForm.handleSubmit(onUpdate)} className="space-y-4">
-              <div>
+              <form onSubmit={updateForm.handleSubmit(onUpdate)} className="space-y-4">
+                <div>
                 <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Email Address</label>
-                <input
-                  {...updateForm.register('email')}
-                  type="email"
-                  className="hh-input w-full"
-                />
-                {updateForm.formState.errors.email && (
-                  <p className="mt-1 text-xs text-red-400">{updateForm.formState.errors.email.message}</p>
-                )}
-              </div>
-              <div>
+                  <input
+                    {...updateForm.register('email')}
+                    type="email"
+                    className="hh-input w-full"
+                  />
+                  {updateForm.formState.errors.email && (
+                    <p className="mt-1 text-xs text-red-400">{updateForm.formState.errors.email.message}</p>
+                  )}
+                </div>
+                <div>
                 <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">
                   New Password <span className="text-[var(--hh-text-tertiary)] font-normal">(optional)</span>
-                </label>
-                <input
-                  {...updateForm.register('password')}
-                  type="password"
-                  className="hh-input w-full"
+                  </label>
+                  <input
+                    {...updateForm.register('password')}
+                    type="password"
+                    className="hh-input w-full"
                   placeholder="Leave blank to keep current"
-                />
-                {updateForm.formState.errors.password && (
-                  <p className="mt-1 text-xs text-red-400">{updateForm.formState.errors.password.message}</p>
-                )}
-              </div>
-              <div>
+                  />
+                  {updateForm.formState.errors.password && (
+                    <p className="mt-1 text-xs text-red-400">{updateForm.formState.errors.password.message}</p>
+                  )}
+                </div>
+                <div>
                 <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Role</label>
-                <select {...updateForm.register('role')} className="hh-input w-full">
+                  <select {...updateForm.register('role')} className="hh-input w-full">
                   <option value="admin">Admin (Full Access)</option>
                   <option value="moderator">Moderator (Limited Access)</option>
-                </select>
-              </div>
+                  </select>
+                </div>
               <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateForm.reset();
-                    setEditingUser(null);
-                  }}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateForm.reset();
+                      setEditingUser(null);
+                    }}
                   className="hh-btn-secondary flex-1 justify-center"
-                >
-                  Cancel
-                </button>
+                  >
+                    Cancel
+                  </button>
                 <button type="submit" className="hh-btn-primary flex-1 justify-center" disabled={updateForm.formState.isSubmitting}>
                   {updateForm.formState.isSubmitting ? 'Updating...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Delete Confirmation */}
-      {deleteConfirm && (
+        {/* Delete Confirmation */}
+        {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all">
           <div className="hh-card max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200 border-red-500/20">
             <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4 text-red-500">
@@ -398,24 +398,24 @@ export default function AdminUsersPage() {
             <h2 className="text-xl font-bold mb-2 text-[var(--hh-text)]">Delete User?</h2>
             <p className="mb-6 text-[var(--hh-text-secondary)]">
               Are you sure you want to delete this user? This action cannot be undone and will revoke their access immediately.
-            </p>
+              </p>
             <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
+                <button
+                  onClick={() => setDeleteConfirm(null)}
                 className="hh-btn-secondary flex-1 justify-center"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => onDelete(deleteConfirm)}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => onDelete(deleteConfirm)}
                 className="flex-1 justify-center px-4 py-2 rounded-xl font-medium transition-all duration-200 active:scale-95 bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20"
-              >
+                >
                 Delete User
-              </button>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }
