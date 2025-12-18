@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { EventCreateSchema, type EventCreateInput } from '@/lib/validation';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 
 const categories = ['Music', 'Tech', 'Comedy', 'Art', 'Sports'] as const;
 
@@ -35,7 +36,6 @@ const steps = [
 
 export default function NewEventPage() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' } | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
@@ -57,7 +57,7 @@ export default function NewEventPage() {
         }
       })
       .catch(() => {
-        setError('Failed to load user information');
+        toast.error('Failed to load user information');
       })
       .finally(() => {
         setIsLoadingUser(false);
@@ -89,48 +89,53 @@ export default function NewEventPage() {
 
   const uploadHero = async (file: File) => {
     setIsUploadingImage(true);
-    setError(null);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch('/api/upload', { method: 'POST', body: fd });
-      if (res.ok) {
-        const data = await res.json();
-        setValue('hero_image_url', data.url, { shouldValidate: true, shouldDirty: true });
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    if (res.ok) {
+      const data = await res.json();
+      setValue('hero_image_url', data.url, { shouldValidate: true, shouldDirty: true });
+      toast.success('Image uploaded successfully');
       } else {
         const errorData = await res.json().catch(() => ({}));
-        setError(errorData?.error ?? 'Failed to upload image. Please try again.');
+        toast.error(errorData?.error ?? 'Failed to upload image. Please try again.');
       }
     } catch (err) {
-      setError('Failed to upload image. Please check your connection and try again.');
+      toast.error('Failed to upload image. Please check your connection and try again.');
     } finally {
       setIsUploadingImage(false);
     }
   };
 
   const onSubmit = async (values: EventCreateInput) => {
-    setError(null);
     try {
+      const payload = {
+        ...values,
+        start_at: values.start_at ? new Date(values.start_at).toISOString() : undefined,
+        end_at: values.end_at ? new Date(values.end_at).toISOString() : undefined,
+      };
+
       const res = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
-      if (res.ok) {
-        const data = await res.json();
-        router.push(`/events/${data.event.id}`);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setError(data?.error ?? 'Failed to create event. Please check all fields and try again.');
+    if (res.ok) {
+      const data = await res.json();
+      toast.success('Event created successfully');
+      router.push(`/events/${data.event.id}`);
+    } else {
+      const data = await res.json().catch(() => ({}));
+        toast.error(data?.error ?? 'Failed to create event. Please check all fields and try again.');
       }
     } catch (err) {
-      setError('Network error. Please check your connection and try again.');
+      toast.error('Network error. Please check your connection and try again.');
     }
   };
 
   const nextStep = async () => {
     setIsValidatingStep(true);
-    setError(null);
     try {
       let fieldsToValidate: (keyof EventCreateInput)[] = [];
       
@@ -153,7 +158,9 @@ export default function NewEventPage() {
       if (isValid) {
         setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
+    } else {
+      toast.error('Please fill in all required fields correctly before proceeding.');
+    }
     } finally {
       setIsValidatingStep(false);
     }
@@ -170,7 +177,7 @@ export default function NewEventPage() {
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-[var(--hh-primary)] border-t-transparent rounded-full animate-spin"></div>
-          <div className="text-[var(--hh-text-secondary)]">Loading...</div>
+        <div className="text-[var(--hh-text-secondary)]">Loading...</div>
         </div>
       </div>
     );
@@ -235,14 +242,7 @@ export default function NewEventPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 flex items-center gap-3">
-          <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          {error}
-        </div>
-      )}
+
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
         

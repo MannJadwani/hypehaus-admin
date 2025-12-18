@@ -83,13 +83,20 @@ export default function EditEventPage() {
     setEvent(data.event);
     setTiers(data.tiers);
     setImages(data.images);
+    
+    const toLocalISO = (str: string) => {
+      if (!str) return '';
+      const d = new Date(str);
+      return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+    };
+
     reset({
       title: data.event.title,
       description: data.event.description ?? '',
       category: data.event.category ?? undefined,
       hero_image_url: data.event.hero_image_url ?? '',
-      start_at: data.event.start_at?.slice(0, 16),
-      end_at: data.event.end_at ? data.event.end_at.slice(0, 16) : '',
+      start_at: toLocalISO(data.event.start_at),
+      end_at: data.event.end_at ? toLocalISO(data.event.end_at) : '',
       venue_name: data.event.venue_name ?? '',
       address_line: data.event.address_line ?? '',
       city: data.event.city ?? '',
@@ -109,10 +116,16 @@ export default function EditEventPage() {
 
   const onSubmit = async (values: EventUpdateInput) => {
     setError(null);
+    const payload = {
+      ...values,
+      start_at: values.start_at ? new Date(values.start_at).toISOString() : undefined,
+      end_at: values.end_at ? new Date(values.end_at).toISOString() : undefined,
+    };
+
     const res = await fetch(`/api/events/${eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(values),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));

@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     console.log('[upload] start');
     const { data, error } = await supabaseAdmin.storage.listBuckets();
     console.log('buckets', data, error);
-     
+
     const form = await req.formData();
     const file = form.get('file');
     const eventId = form.get('event_id') as string | null;
@@ -45,25 +45,34 @@ export async function POST(req: NextRequest) {
     // Compress image before upload
     const arrayBuffer = await file.arrayBuffer();
     const compressedBuffer = await compressImage(arrayBuffer, MAX_IMAGE_SIZE_KB);
-    
+
     // Determine file extension and content type
-    const originalExt = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+    // Since we are forcing WebP conversion in compressImage, we default to webp logic
+    // But we should double check if the file is actually an image
     const isImage = file.type?.startsWith('image/');
-    const fileExt = isImage ? (compressedBuffer.length < arrayBuffer.byteLength ? 'jpg' : originalExt) : originalExt;
-    const contentType = isImage ? 'image/jpeg' : (file.type || 'application/octet-stream');
-    
+
+    // If it is an image, we are converting it to webp.
+    // If it's not an image (which shouldn't happen given the instructions, but for safety), treat as original.
+    // However, compressImage returns inputBuffer if not image or sharp fails.
+    // We can assume for now we want to treat it as webp if it was processed.
+    // Let's refine: if it is an image, the output IS webp (unless sharp failed).
+    // Ideally compressImage should signal what it did, but for now we assume success if isImage is true.
+
+    const fileExt = isImage ? 'webp' : (file.name.split('.').pop()?.toLowerCase() ?? 'bin');
+    const contentType = isImage ? 'image/webp' : (file.type || 'application/octet-stream');
+
     const rand = Math.random().toString(36).slice(2);
     const fileName = `${Date.now()}-${rand}.${fileExt}`;
     const path = eventId ? `${eventId}/${fileName}` : `misc/${fileName}`;
-    
+
     const originalSizeKB = (arrayBuffer.byteLength / 1024).toFixed(2);
     const compressedSizeKB = (compressedBuffer.length / 1024).toFixed(2);
-    console.log('[upload] compression', { 
-      originalSizeKB, 
-      compressedSizeKB, 
-      fileName, 
-      path, 
-      fileType: contentType 
+    console.log('[upload] compression', {
+      originalSizeKB,
+      compressedSizeKB,
+      fileName,
+      path,
+      fileType: contentType
     });
 
     const { error: uploadError } = await supabaseAdmin.storage

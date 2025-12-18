@@ -5,6 +5,8 @@ import Sidebar from "@/components/Sidebar";
 import { cookies } from "next/headers";
 import { verifyAdminJWT } from "@/lib/jwt";
 
+import { Toaster } from 'sonner';
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -43,6 +45,7 @@ export default async function RootLayout({
           {children}
           </div>
         </main>
+        <Toaster position="top-center" />
       </body>
     </html>
   );

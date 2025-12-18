@@ -9,54 +9,41 @@ export async function compressImage(
   const targetSizeBytes = targetSizeKB * 1024;
   const inputBuffer = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
 
-  // If already small enough, return as-is
-  if (inputBuffer.length <= targetSizeBytes) {
-    return inputBuffer;
-  }
-
   // Try to use sharp if available
   try {
     const sharp = await import('sharp').catch(() => null);
     if (sharp?.default) {
       let quality = 80;
       let width = 1920;
-      let outputBuffer = inputBuffer;
+      let outputBuffer: Buffer | null = null;
+      let currentWidth = width;
 
-      // Binary search for optimal quality/size
-      while (outputBuffer.length > targetSizeBytes && quality > 10) {
-        outputBuffer = await sharp.default(inputBuffer)
-          .resize(width, null, { withoutEnlargement: true, fit: 'inside' })
-          .jpeg({ quality, mozjpeg: true })
+      // First pass: Convert to WebP
+      // We start with a reasonable quality and size
+      const process = async (q: number, w: number) => {
+        return await sharp.default(inputBuffer)
+          .resize(w, null, { withoutEnlargement: true, fit: 'inside' })
+          .webp({ quality: q })
           .toBuffer();
+      };
 
-        if (outputBuffer.length > targetSizeBytes) {
-          if (quality > 30) {
-            quality -= 10;
-          } else {
-            width = Math.floor(width * 0.9);
-            quality = 80;
-          }
-        }
-      }
+      outputBuffer = await process(quality, currentWidth);
 
-      // If still too large, try WebP
-      if (outputBuffer.length > targetSizeBytes) {
-        quality = 80;
-        while (outputBuffer.length > targetSizeBytes && quality > 10) {
-          outputBuffer = await sharp.default(inputBuffer)
-            .resize(width, null, { withoutEnlargement: true, fit: 'inside' })
-            .webp({ quality })
-            .toBuffer();
-          if (outputBuffer.length > targetSizeBytes) {
-            quality -= 10;
-          }
+      // Loop to reduce size if needed
+      while (outputBuffer.length > targetSizeBytes && (quality > 10 || currentWidth > 500)) {
+        if (quality > 30) {
+          quality -= 10;
+        } else {
+          currentWidth = Math.floor(currentWidth * 0.8);
+          quality = 80; // Reset quality when resizing down significantly
         }
+        outputBuffer = await process(quality, currentWidth);
       }
 
       return outputBuffer;
     }
   } catch (error) {
-    console.warn('Sharp not available, using basic compression', error);
+    console.warn('Sharp not available or error during compression, using basic fallback', error);
   }
 
   // Fallback: return original if compression library not available
