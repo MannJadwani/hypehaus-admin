@@ -39,6 +39,7 @@ type EventDetail = {
   base_price_cents: number | null;
   currency: string | null;
   status: 'draft' | 'published' | 'archived';
+  vendor_id: string | null;
 };
 
 const categories = ['Music', 'Tech', 'Comedy', 'Art', 'Sports'] as const;
@@ -47,6 +48,8 @@ export default function EditEventPage() {
   const params = useParams<{ id: string }>();
   const eventId = params.id;
   const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' | 'vendor' | 'vendor_moderator' } | null>(null);
+  const [vendors, setVendors] = useState<{ id: string; email: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [event, setEvent] = useState<EventDetail | null>(null);
@@ -110,11 +113,31 @@ export default function EditEventPage() {
   };
 
   useEffect(() => {
+    fetch('/api/admin/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.admin) {
+          setCurrentUser(data.admin);
+        }
+      })
+      .catch(() => {});
+
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
+  useEffect(() => {
+    if (currentUser?.role !== 'admin') return;
+    fetch('/api/admin/vendors')
+      .then(res => res.json())
+      .then(data => setVendors(data.vendors ?? []))
+      .catch(() => {});
+  }, [currentUser?.role]);
+
+  const canEdit = currentUser ? currentUser.role !== 'vendor_moderator' : false;
+
   const onSubmit = async (values: EventUpdateInput) => {
+    if (!canEdit) return;
     setError(null);
     const payload = {
       ...values,
@@ -136,6 +159,7 @@ export default function EditEventPage() {
   };
 
   const addTier = async (values: z.input<typeof TierCreateSchema>) => {
+    if (!canEdit) return;
     const res = await fetch(`/api/events/${eventId}/tiers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -148,11 +172,13 @@ export default function EditEventPage() {
   };
 
   const deleteTier = async (tierId: string) => {
+    if (!canEdit) return;
     await fetch(`/api/tiers/${tierId}`, { method: 'DELETE' });
     await load();
   };
 
   const addImage = async (values: z.input<typeof ImageCreateSchema>) => {
+    if (!canEdit) return;
     const res = await fetch(`/api/events/${eventId}/images`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -165,6 +191,7 @@ export default function EditEventPage() {
   };
 
   const uploadImage = async (file: File, position?: number) => {
+    if (!canEdit) return;
     const fd = new FormData();
     fd.append('file', file);
     fd.append('event_id', eventId);
@@ -176,6 +203,7 @@ export default function EditEventPage() {
   };
 
   const uploadHero = async (file: File) => {
+    if (!canEdit) return;
     const fd = new FormData();
     fd.append('file', file);
     fd.append('event_id', eventId);
@@ -192,6 +220,7 @@ export default function EditEventPage() {
   };
 
   const moveImage = async (index: number, direction: -1 | 1) => {
+    if (!canEdit) return;
     const newIndex = index + direction;
     if (newIndex < 0 || newIndex >= images.length) return;
     const current = images[index];
@@ -213,7 +242,23 @@ export default function EditEventPage() {
   };
 
   const deleteImage = async (imageId: string) => {
+    if (!canEdit) return;
     await fetch(`/api/images/${imageId}`, { method: 'DELETE' });
+    await load();
+  };
+
+  const assignVendor = async (vendorId: string) => {
+    if (currentUser?.role !== 'admin') return;
+    const res = await fetch(`/api/events/${eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vendor_id: vendorId }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data?.error ?? 'Failed to assign vendor');
+      return;
+    }
     await load();
   };
 
@@ -232,19 +277,44 @@ export default function EditEventPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-4 mb-6 md:mb-8 hh-card p-4 md:p-6">
+        {currentUser?.role === 'admin' && (
+          <div>
+            <label className="block text-sm font-medium mb-1">Vendor Assignment</label>
+            {event.vendor_id ? (
+              <div className="text-sm text-[var(--hh-text-secondary)]">
+                Assigned to {vendors.find((v) => v.id === event.vendor_id)?.email ?? event.vendor_id}
+              </div>
+            ) : (
+              <select
+                className="w-full hh-input px-3 py-2 text-sm"
+                onChange={(e) => {
+                  if (e.target.value) assignVendor(e.target.value);
+                }}
+                defaultValue=""
+              >
+                <option value="">Select vendor...</option>
+                {vendors.map((vendor) => (
+                  <option key={vendor.id} value={vendor.id}>
+                    {vendor.email}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
         <div>
           <label className="block text-sm font-medium mb-1">Title</label>
-          <input className="w-full hh-input px-3 py-2 text-sm" {...register('title')} />
+          <input className="w-full hh-input px-3 py-2 text-sm" {...register('title')} disabled={!canEdit} />
           {errors.title && <p className="text-xs text-red-600">{errors.title.message}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Description</label>
-          <textarea className="w-full hh-input px-3 py-2 text-sm" rows={4} {...register('description')} />
+          <textarea className="w-full hh-input px-3 py-2 text-sm" rows={4} {...register('description')} disabled={!canEdit} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Category</label>
-            <select className="w-full hh-input px-3 py-2 text-sm" {...register('category')}>
+            <select className="w-full hh-input px-3 py-2 text-sm" {...register('category')} disabled={!canEdit}>
               <option value="">Select...</option>
               {categories.map((c) => (
                 <option key={c} value={c}>{c}</option>
@@ -262,8 +332,9 @@ export default function EditEventPage() {
                   const f = e.target.files?.[0];
                   if (f) uploadHero(f);
                 }}
+                disabled={!canEdit}
               />
-              <input className="w-full hh-input px-3 py-2 text-sm" {...register('hero_image_url')} />
+              <input className="w-full hh-input px-3 py-2 text-sm" {...register('hero_image_url')} disabled={!canEdit} />
               {event.hero_image_url ? (
                 <img src={event.hero_image_url} alt="Hero preview" className="mt-1 h-28 w-full object-cover rounded-md border border-(--hh-border)" />
               ) : null}
@@ -273,35 +344,35 @@ export default function EditEventPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Start At</label>
-            <input type="datetime-local" className="w-full hh-input px-3 py-2 text-sm" {...register('start_at')} />
+            <input type="datetime-local" className="w-full hh-input px-3 py-2 text-sm" {...register('start_at')} disabled={!canEdit} />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">End At</label>
-            <input type="datetime-local" className="w-full hh-input px-3 py-2 text-sm" {...register('end_at')} />
+            <input type="datetime-local" className="w-full hh-input px-3 py-2 text-sm" {...register('end_at')} disabled={!canEdit} />
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Venue</label>
-            <input className="w-full hh-input px-3 py-2 text-sm" {...register('venue_name')} />
+            <input className="w-full hh-input px-3 py-2 text-sm" {...register('venue_name')} disabled={!canEdit} />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">City</label>
-            <input className="w-full hh-input px-3 py-2 text-sm" {...register('city')} />
+            <input className="w-full hh-input px-3 py-2 text-sm" {...register('city')} disabled={!canEdit} />
           </div>
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Address</label>
-          <input className="w-full hh-input px-3 py-2 text-sm" {...register('address_line')} />
+          <input className="w-full hh-input px-3 py-2 text-sm" {...register('address_line')} disabled={!canEdit} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Latitude</label>
-            <input type="number" step="0.000001" className="w-full hh-input px-3 py-2 text-sm" {...register('latitude', { valueAsNumber: true })} />
+            <input type="number" step="0.000001" className="w-full hh-input px-3 py-2 text-sm" {...register('latitude', { valueAsNumber: true })} disabled={!canEdit} />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Longitude</label>
-            <input type="number" step="0.000001" className="w-full hh-input px-3 py-2 text-sm" {...register('longitude', { valueAsNumber: true })} />
+            <input type="number" step="0.000001" className="w-full hh-input px-3 py-2 text-sm" {...register('longitude', { valueAsNumber: true })} disabled={!canEdit} />
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -320,30 +391,37 @@ export default function EditEventPage() {
                   return isNaN(num) ? undefined : num;
                 }
               })} 
+              disabled={!canEdit}
             />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Currency</label>
-            <input className="w-full hh-input px-3 py-2 text-sm" {...register('currency')} />
+            <input className="w-full hh-input px-3 py-2 text-sm" {...register('currency')} disabled={!canEdit} />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Status</label>
-            <select className="w-full hh-input px-3 py-2 text-sm" {...register('status')}>
+            <select className="w-full hh-input px-3 py-2 text-sm" {...register('status')} disabled={!canEdit || currentUser?.role === 'vendor'}>
               <option value="draft">Draft</option>
               <option value="published">Published</option>
               <option value="archived">Archived</option>
             </select>
+            {currentUser?.role === 'vendor' && (
+              <p className="mt-1 text-xs text-[var(--hh-text-tertiary)]">Only admins can publish events.</p>
+            )}
           </div>
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Offer cab option at checkout</label>
           <div className="flex items-center gap-2">
-            <input type="checkbox" className="h-4 w-4" {...register('allow_cab')} />
+            <input type="checkbox" className="h-4 w-4" {...register('allow_cab')} disabled={!canEdit || currentUser?.role !== 'admin'} />
             <span className="text-[var(--hh-text-secondary)] text-sm">Customers can request a cab when booking</span>
           </div>
+          {currentUser?.role !== 'admin' && (
+            <p className="mt-1 text-xs text-[var(--hh-text-tertiary)]">Only admins can enable cab options.</p>
+          )}
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
-          <button type="submit" disabled={isSubmitting} className="hh-btn-primary px-4 py-2 text-sm disabled:opacity-50 w-full sm:w-auto">Save</button>
+          <button type="submit" disabled={isSubmitting || !canEdit} className="hh-btn-primary px-4 py-2 text-sm disabled:opacity-50 w-full sm:w-auto">Save</button>
           <Link href="/events" className="hh-btn-secondary px-4 py-2 text-sm w-full sm:w-auto text-center">Back</Link>
         </div>
       </form>
@@ -358,18 +436,22 @@ export default function EditEventPage() {
                   <div className="font-medium">{t.name}</div>
                   <div className="text-gray-600">{t.currency} {t.price_cents} • Qty {t.total_quantity} • Sold {t.sold_quantity}</div>
                 </div>
-                <button onClick={() => deleteTier(t.id)} className="text-xs hh-btn-secondary">Delete</button>
+                {canEdit && (
+                  <button onClick={() => deleteTier(t.id)} className="text-xs hh-btn-secondary">Delete</button>
+                )}
               </div>
             ))}
             {tiers.length === 0 && <p className="text-sm text-gray-600">No tiers yet.</p>}
           </div>
-          <form onSubmit={tierForm.handleSubmit(addTier)} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input placeholder="Name" className="hh-input px-3 py-2 text-sm col-span-1 sm:col-span-2" {...tierForm.register('name')} />
-            <input type="number" placeholder="Price (cents)" className="hh-input px-3 py-2 text-sm" {...tierForm.register('price_cents', { valueAsNumber: true })} />
-            <input placeholder="Currency" className="hh-input px-3 py-2 text-sm" {...tierForm.register('currency')} />
-            <input type="number" placeholder="Total Qty" className="hh-input px-3 py-2 text-sm" {...tierForm.register('total_quantity', { valueAsNumber: true })} />
-            <button className="hh-btn-primary px-3 py-2 text-sm col-span-1 sm:col-span-2 w-full sm:w-auto">Add Tier</button>
-          </form>
+          {canEdit && (
+            <form onSubmit={tierForm.handleSubmit(addTier)} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input placeholder="Name" className="hh-input px-3 py-2 text-sm col-span-1 sm:col-span-2" {...tierForm.register('name')} />
+              <input type="number" placeholder="Price (cents)" className="hh-input px-3 py-2 text-sm" {...tierForm.register('price_cents', { valueAsNumber: true })} />
+              <input placeholder="Currency" className="hh-input px-3 py-2 text-sm" {...tierForm.register('currency')} />
+              <input type="number" placeholder="Total Qty" className="hh-input px-3 py-2 text-sm" {...tierForm.register('total_quantity', { valueAsNumber: true })} />
+              <button className="hh-btn-primary px-3 py-2 text-sm col-span-1 sm:col-span-2 w-full sm:w-auto">Add Tier</button>
+            </form>
+          )}
         </section>
 
         <section>
@@ -381,38 +463,42 @@ export default function EditEventPage() {
                   <div className="font-medium">Position {img.position}</div>
                   <div className="text-gray-600">{img.url}</div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => moveImage(idx, -1)} className="text-xs hh-btn-secondary">Up</button>
-                  <button onClick={() => moveImage(idx, 1)} className="text-xs hh-btn-secondary">Down</button>
-                  <button onClick={() => deleteImage(img.id)} className="text-xs hh-btn-secondary">Delete</button>
-                </div>
+                {canEdit && (
+                  <div className="flex gap-2">
+                    <button onClick={() => moveImage(idx, -1)} className="text-xs hh-btn-secondary">Up</button>
+                    <button onClick={() => moveImage(idx, 1)} className="text-xs hh-btn-secondary">Down</button>
+                    <button onClick={() => deleteImage(img.id)} className="text-xs hh-btn-secondary">Delete</button>
+                  </div>
+                )}
               </div>
             ))}
             {images.length === 0 && <p className="text-sm text-gray-600">No images yet.</p>}
           </div>
-          <form onSubmit={imageForm.handleSubmit(addImage)} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input placeholder="Image URL" className="hh-input px-3 py-2 text-sm col-span-1 sm:col-span-2" {...imageForm.register('url')} />
-            <input type="number" placeholder="Position" className="hh-input px-3 py-2 text-sm" {...imageForm.register('position', { valueAsNumber: true })} />
-            <button className="hh-btn-primary px-3 py-2 text-sm col-span-1 sm:col-span-3 w-full sm:w-auto">Add Image</button>
-          </form>
+          {canEdit && (
+            <>
+              <form onSubmit={imageForm.handleSubmit(addImage)} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input placeholder="Image URL" className="hh-input px-3 py-2 text-sm col-span-1 sm:col-span-2" {...imageForm.register('url')} />
+                <input type="number" placeholder="Position" className="hh-input px-3 py-2 text-sm" {...imageForm.register('position', { valueAsNumber: true })} />
+                <button className="hh-btn-primary px-3 py-2 text-sm col-span-1 sm:col-span-3 w-full sm:w-auto">Add Image</button>
+              </form>
 
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-            <input type="file" accept="image/*" className="col-span-1 sm:col-span-2 hh-input px-3 py-2 text-sm"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) uploadImage(f);
-              }}
-            />
-            <button onClick={(e) => {
-              e.preventDefault();
-              const input = (e.currentTarget.previousSibling as HTMLInputElement);
-              input?.click?.();
-            }} className="hh-btn-secondary px-3 py-2 text-sm">Upload</button>
-          </div>
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+                <input type="file" accept="image/*" className="col-span-1 sm:col-span-2 hh-input px-3 py-2 text-sm"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadImage(f);
+                  }}
+                />
+                <button onClick={(e) => {
+                  e.preventDefault();
+                  const input = (e.currentTarget.previousSibling as HTMLInputElement);
+                  input?.click?.();
+                }} className="hh-btn-secondary px-3 py-2 text-sm">Upload</button>
+              </div>
+            </>
+          )}
         </section>
       </div>
     </div>
   );
 }
-
-

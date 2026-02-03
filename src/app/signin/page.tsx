@@ -22,7 +22,8 @@ export default function SignInPage() {
       body: JSON.stringify(values),
     });
     if (res.ok) {
-      router.push('/events');
+      router.replace('/');
+      router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
       setError(data?.error ?? 'Sign in failed');

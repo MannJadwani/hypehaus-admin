@@ -12,6 +12,7 @@ type Event = {
   start_at: string;
   status: 'draft' | 'published' | 'archived';
   cab_opt_in_count?: number;
+  vendor_id?: string | null;
 };
 
 const COLS_KEY = 'events_table_cols';
@@ -20,7 +21,7 @@ export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' | 'vendor' | 'vendor_moderator' } | null>(null);
 
   // Filters
   const [q, setQ] = useState('');
@@ -182,16 +183,20 @@ export default function EventsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
         </Link>
-        <button onClick={() => togglePublish(e)} className={`p-2 hover:bg-[var(--hh-bg-elevated)] rounded-lg transition-colors ${e.status === 'published' ? 'text-green-400' : 'text-[var(--hh-text-secondary)]'}`} title={e.status === 'published' ? 'Unpublish' : 'Publish'}>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={e.status === 'published' ? "M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" : "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"} />
-            </svg>
-        </button>
-        <Link href={`/events/${e.id}`} className="p-2 hover:bg-[var(--hh-bg-elevated)] rounded-lg text-[var(--hh-text-secondary)] transition-colors" title="Edit Event">
-             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-        </Link>
+        {(currentUser?.role === 'admin' || currentUser?.role === 'moderator') && (
+          <button onClick={() => togglePublish(e)} className={`p-2 hover:bg-[var(--hh-bg-elevated)] rounded-lg transition-colors ${e.status === 'published' ? 'text-green-400' : 'text-[var(--hh-text-secondary)]'}`} title={e.status === 'published' ? 'Unpublish' : 'Publish'}>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={e.status === 'published' ? "M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" : "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"} />
+              </svg>
+          </button>
+        )}
+        {currentUser?.role !== 'vendor_moderator' && (
+          <Link href={`/events/${e.id}`} className="p-2 hover:bg-[var(--hh-bg-elevated)] rounded-lg text-[var(--hh-text-secondary)] transition-colors" title="Edit Event">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+          </Link>
+        )}
         {currentUser?.role === 'admin' && (
           <button onClick={() => destroy(e)} className="p-2 hover:bg-red-500/10 rounded-lg text-[var(--hh-text-secondary)] hover:text-red-400 transition-colors" title="Delete Event">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

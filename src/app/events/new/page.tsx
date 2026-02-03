@@ -36,7 +36,7 @@ const steps = [
 
 export default function NewEventPage() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' | 'vendor' | 'vendor_moderator' } | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -50,8 +50,8 @@ export default function NewEventPage() {
       .then(data => {
         if (data.admin) {
           setCurrentUser(data.admin);
-          // Redirect moderators - only admins can create events
-          if (data.admin.role !== 'admin') {
+          // Only admins and vendors can create events
+          if (data.admin.role !== 'admin' && data.admin.role !== 'vendor') {
             router.push('/events');
           }
         }
@@ -183,12 +183,12 @@ export default function NewEventPage() {
     );
   }
 
-  if (currentUser.role !== 'admin') {
+  if (currentUser.role !== 'admin' && currentUser.role !== 'vendor') {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-center max-w-md">
           <h3 className="text-lg font-bold text-red-400 mb-2">Unauthorized Access</h3>
-          <p className="text-[var(--hh-text-secondary)]">Only admins can create new events.</p>
+          <p className="text-[var(--hh-text-secondary)]">Only admins and vendors can create new events.</p>
         </div>
       </div>
     );
@@ -286,11 +286,14 @@ export default function NewEventPage() {
 
                 <div>
                   <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Status</label>
-                  <select className="hh-input w-full appearance-none" {...register('status')}>
+                  <select className="hh-input w-full appearance-none" {...register('status')} disabled={currentUser?.role === 'vendor'}>
                     <option value="draft">Draft (Hidden)</option>
                     <option value="published">Published (Visible)</option>
                     <option value="archived">Archived</option>
                   </select>
+                  {currentUser?.role === 'vendor' && (
+                    <p className="mt-1.5 text-xs text-[var(--hh-text-tertiary)]">Vendor events require admin approval before publishing.</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -493,11 +496,15 @@ export default function NewEventPage() {
                     type="checkbox" 
                     className="h-4 w-4 rounded border-[var(--hh-border)] text-[var(--hh-primary)] focus:ring-[var(--hh-primary)] bg-[var(--hh-bg-input)]" 
                     {...register('allow_cab')} 
+                    disabled={currentUser?.role !== 'admin'}
                   />
                 </div>
                 <div className="text-sm">
                   <label htmlFor="allow_cab" className="font-medium text-[var(--hh-text)]">Cab Booking Option</label>
                   <p className="text-[var(--hh-text-secondary)] mt-0.5">Allow customers to request a cab ride when booking their tickets.</p>
+                  {currentUser?.role !== 'admin' && (
+                    <p className="text-[var(--hh-text-tertiary)] mt-1">Only admins can enable cab options.</p>
+                  )}
                 </div>
               </div>
           </div>

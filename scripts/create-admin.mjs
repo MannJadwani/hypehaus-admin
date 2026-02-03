@@ -1,6 +1,6 @@
 // Usage:
 //   SUPABASE_URL=... SUPABASE_SERVICE_ROLE=... node scripts/create-admin.mjs \
-//     --email hypehaus21@gmail.com --password Aditya@21 [--role admin]
+//     --email hypehaus21@gmail.com --password Aditya@21 [--role admin] [--vendor-id <uuid>]
 
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcrypt';
@@ -22,6 +22,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
 const email = getArg('--email', 'hypehaus21@gmail.com');
 const password = getArg('--password', 'Aditya@21');
 const role = getArg('--role', 'admin');
+const vendorId = getArg('--vendor-id', null);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -31,7 +32,7 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, 10);
   const { data, error } = await supabase
     .from('admin_users')
-    .upsert({ email, password_hash: passwordHash, role }, { onConflict: 'email' })
+    .upsert({ email, password_hash: passwordHash, role, vendor_id: vendorId }, { onConflict: 'email' })
     .select('*')
     .single();
 
@@ -46,5 +47,4 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-
 

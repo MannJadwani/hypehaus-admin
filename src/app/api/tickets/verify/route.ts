@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { requireAuth } from '@/lib/admin-auth';
+import { getEventAccess, requireAuth } from '@/lib/admin-auth';
 import { NextRequest } from 'next/server';
 
 interface QRCodeData {
@@ -13,8 +13,9 @@ interface QRCodeData {
 }
 
 export async function POST(req: NextRequest) {
+  let admin;
   try {
-    await requireAuth(req); // Both admins and moderators can scan tickets
+    admin = await requireAuth(req); // All authenticated roles can scan tickets (scoped for vendors)
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 401 });
   }
@@ -80,6 +81,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Ticket not found', message: 'No ticket found matching this QR code' },
         { status: 404 }
+      );
+    }
+
+    const eventAccess = await getEventAccess(admin, ticket.event_id);
+    if (!eventAccess) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Event access denied' },
+        { status: 403 }
       );
     }
 
@@ -299,4 +308,3 @@ async function fetchFullTicketData(ticketId: string) {
     allTickets: ticketsWithTiers,
   };
 }
-

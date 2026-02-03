@@ -1,20 +1,27 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { TierUpdateSchema } from '@/lib/validation';
-import { requireEventEdit } from '@/lib/admin-auth';
+import { getEventAccess, requireEventEdit } from '@/lib/admin-auth';
 import { NextRequest } from 'next/server';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
-    await requireEventEdit(req); // Both admins and moderators can edit tiers
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 403 });
-  }
-
-  try {
+    const admin = await requireEventEdit(req); // Admins, moderators, vendors (no vendor_moderator)
     const { id } = await params;
+    const { data: tier, error: tierError } = await supabaseAdmin
+      .from('ticket_tiers')
+      .select('id, event_id')
+      .eq('id', id)
+      .single();
+    if (tierError || !tier) {
+      return NextResponse.json({ error: 'Tier not found' }, { status: 404 });
+    }
+    const eventAccess = await getEventAccess(admin, tier.event_id);
+    if (!eventAccess) {
+      return NextResponse.json({ error: 'Unauthorized: Event access denied' }, { status: 403 });
+    }
     const json = await req.json();
     const parsed = TierUpdateSchema.safeParse(json);
     if (!parsed.success) {
@@ -41,17 +48,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
-    await requireEventEdit(req); // Both admins and moderators can delete tiers
+    const admin = await requireEventEdit(req); // Admins, moderators, vendors (no vendor_moderator)
+    const { id } = await params;
+    const { data: tier, error: tierError } = await supabaseAdmin
+      .from('ticket_tiers')
+      .select('id, event_id')
+      .eq('id', id)
+      .single();
+    if (tierError || !tier) {
+      return NextResponse.json({ error: 'Tier not found' }, { status: 404 });
+    }
+    const eventAccess = await getEventAccess(admin, tier.event_id);
+    if (!eventAccess) {
+      return NextResponse.json({ error: 'Unauthorized: Event access denied' }, { status: 403 });
+    }
+
+    const { error } = await supabaseAdmin.from('ticket_tiers').delete().eq('id', id);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 403 });
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
-
-  const { id } = await params;
-  const { error } = await supabaseAdmin.from('ticket_tiers').delete().eq('id', id);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  return NextResponse.json({ success: true });
 }
-
 

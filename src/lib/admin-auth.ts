@@ -2,12 +2,18 @@ import { NextRequest } from 'next/server';
 import { verifyAdminJWT } from '@/lib/jwt';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
-export type AdminRole = 'admin' | 'moderator';
+export type AdminRole = 'admin' | 'moderator' | 'vendor' | 'vendor_moderator';
 
 export type AdminUser = {
   id: string;
   email: string;
   role: AdminRole;
+  vendor_id: string | null;
+};
+
+export type EventAccess = {
+  id: string;
+  vendor_id: string | null;
 };
 
 /**
@@ -23,7 +29,7 @@ export async function getCurrentAdmin(req: NextRequest): Promise<AdminUser | nul
     const { sub: adminId } = verifyAdminJWT(token);
     const { data, error } = await supabaseAdmin
       .from('admin_users')
-      .select('id, email, role')
+      .select('id, email, role, vendor_id')
       .eq('id', adminId)
       .single();
 
@@ -49,7 +55,7 @@ export async function requireAdmin(req: NextRequest): Promise<AdminUser> {
 }
 
 /**
- * Check if the current user is authenticated (admin or moderator)
+ * Check if the current user is authenticated
  */
 export async function requireAuth(req: NextRequest): Promise<AdminUser> {
   const admin = await getCurrentAdmin(req);
@@ -64,8 +70,8 @@ export async function requireAuth(req: NextRequest): Promise<AdminUser> {
  */
 export async function requireEventCreate(req: NextRequest): Promise<AdminUser> {
   const admin = await requireAuth(req);
-  if (admin.role !== 'admin') {
-    throw new Error('Unauthorized: Only admins can create events');
+  if (admin.role !== 'admin' && admin.role !== 'vendor') {
+    throw new Error('Unauthorized: Only admins and vendors can create events');
   }
   return admin;
 }
@@ -82,10 +88,38 @@ export async function requireEventDelete(req: NextRequest): Promise<AdminUser> {
 }
 
 /**
- * Check if the current admin can edit events (admin or moderator)
+ * Check if the current admin can edit events (admin, moderator, vendor)
  */
 export async function requireEventEdit(req: NextRequest): Promise<AdminUser> {
-  return requireAuth(req);
+  const admin = await requireAuth(req);
+  if (admin.role === 'vendor_moderator') {
+    throw new Error('Unauthorized: Insufficient permissions');
+  }
+  return admin;
 }
 
+export function getVendorScopeId(admin: AdminUser): string | null {
+  if (admin.role === 'vendor') return admin.id;
+  if (admin.role === 'vendor_moderator') return admin.vendor_id ?? null;
+  return null;
+}
+
+export async function getEventAccess(admin: AdminUser, eventId: string): Promise<EventAccess | null> {
+  const { data, error } = await supabaseAdmin
+    .from('events')
+    .select('id, vendor_id')
+    .eq('id', eventId)
+    .single();
+
+  if (error || !data) return null;
+
+  if (admin.role === 'admin' || admin.role === 'moderator') {
+    return data;
+  }
+
+  const vendorScopeId = getVendorScopeId(admin);
+  if (!vendorScopeId) return null;
+  if (data.vendor_id !== vendorScopeId) return null;
+  return data;
+}
 

@@ -7,6 +7,5 @@ export async function GET(req: NextRequest) {
   if (!admin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  return NextResponse.json({ admin: { id: admin.id, email: admin.email, role: admin.role } });
+  return NextResponse.json({ admin: { id: admin.id, email: admin.email, role: admin.role, vendor_id: admin.vendor_id } });
 }
-

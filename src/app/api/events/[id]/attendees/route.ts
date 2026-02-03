@@ -1,18 +1,23 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { requireAuth } from '@/lib/admin-auth';
+import { getEventAccess, requireAuth } from '@/lib/admin-auth';
 import { NextRequest } from 'next/server';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, { params }: Params) {
+  let admin;
   try {
-    await requireAuth(req); // Both admins and moderators can view attendees
+    admin = await requireAuth(req); // All authenticated roles can view attendees (scoped for vendors)
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 401 });
   }
 
   const { id } = await params;
+  const eventAccess = await getEventAccess(admin, id);
+  if (!eventAccess) {
+    return NextResponse.json({ error: 'Unauthorized: Event access denied' }, { status: 403 });
+  }
 
   // Fetch tickets for this event and join to orders for buyer data
   const { data: tickets, error } = await supabaseAdmin
