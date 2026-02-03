@@ -1,19 +1,24 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { ImageCreateSchema } from '@/lib/validation';
-import { requireAuth, requireEventEdit } from '@/lib/admin-auth';
+import { getEventAccess, requireAuth, requireEventEdit } from '@/lib/admin-auth';
 import { NextRequest } from 'next/server';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, { params }: Params) {
+  let admin;
   try {
-    await requireAuth(req); // Both admins and moderators can view images
+    admin = await requireAuth(req); // All authenticated roles can view images (scoped for vendors)
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 401 });
   }
 
   const { id: eventId } = await params;
+  const eventAccess = await getEventAccess(admin, eventId);
+  if (!eventAccess) {
+    return NextResponse.json({ error: 'Unauthorized: Event access denied' }, { status: 403 });
+  }
   const { data, error } = await supabaseAdmin
     .from('event_images')
     .select('*')
@@ -27,13 +32,12 @@ export async function GET(req: NextRequest, { params }: Params) {
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    await requireEventEdit(req); // Both admins and moderators can create images
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 403 });
-  }
-
-  try {
+    const admin = await requireEventEdit(req); // Admins, moderators, vendors (no vendor_moderator)
     const { id: eventId } = await params;
+    const eventAccess = await getEventAccess(admin, eventId);
+    if (!eventAccess) {
+      return NextResponse.json({ error: 'Unauthorized: Event access denied' }, { status: 403 });
+    }
     const json = await req.json();
     const parsed = ImageCreateSchema.safeParse(json);
     if (!parsed.success) {
@@ -54,5 +58,4 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-
 

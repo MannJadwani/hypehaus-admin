@@ -17,6 +17,7 @@ export const EventBaseSchema = z.object({
   city: z.string().optional().nullable(),
   latitude: z.number().optional().nullable(),
   longitude: z.number().optional().nullable(),
+  vendor_id: z.string().uuid().optional().nullable(),
   base_price_cents: z
     .number()
     .int()
@@ -58,13 +59,45 @@ export const ImageUpdateSchema = ImageCreateSchema.partial();
 export const AdminUserCreateSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
-  role: z.enum(['admin', 'moderator']),
+  role: z.enum(['admin', 'moderator', 'vendor', 'vendor_moderator']),
+  vendor_id: z.string().uuid().optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.role === 'vendor_moderator' && !data.vendor_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'vendor_id is required for vendor moderators',
+      path: ['vendor_id'],
+    });
+  }
+  if (data.role !== 'vendor_moderator' && data.vendor_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'vendor_id is only allowed for vendor moderators',
+      path: ['vendor_id'],
+    });
+  }
 });
 
 export const AdminUserUpdateSchema = z.object({
   email: z.string().email().optional(),
   password: z.string().min(6).optional(),
-  role: z.enum(['admin', 'moderator']).optional(),
+  role: z.enum(['admin', 'moderator', 'vendor', 'vendor_moderator']).optional(),
+  vendor_id: z.string().uuid().optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.role === 'vendor_moderator' && !data.vendor_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'vendor_id is required for vendor moderators',
+      path: ['vendor_id'],
+    });
+  }
+  if (data.role && data.role !== 'vendor_moderator' && data.vendor_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'vendor_id is only allowed for vendor moderators',
+      path: ['vendor_id'],
+    });
+  }
 });
 
 export type LoginInput = z.infer<typeof LoginSchema>;
@@ -76,5 +109,3 @@ export type ImageCreateInput = z.infer<typeof ImageCreateSchema>;
 export type ImageUpdateInput = z.infer<typeof ImageUpdateSchema>;
 export type AdminUserCreateInput = z.infer<typeof AdminUserCreateSchema>;
 export type AdminUserUpdateInput = z.infer<typeof AdminUserUpdateSchema>;
-
-

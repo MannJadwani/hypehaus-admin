@@ -1,20 +1,27 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { ImageUpdateSchema } from '@/lib/validation';
-import { requireEventEdit } from '@/lib/admin-auth';
+import { getEventAccess, requireEventEdit } from '@/lib/admin-auth';
 import { NextRequest } from 'next/server';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
-    await requireEventEdit(req); // Both admins and moderators can update images
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 403 });
-  }
-
-  try {
+    const admin = await requireEventEdit(req); // Admins, moderators, vendors (no vendor_moderator)
     const { id } = await params;
+    const { data: image, error: imageError } = await supabaseAdmin
+      .from('event_images')
+      .select('id, event_id')
+      .eq('id', id)
+      .single();
+    if (imageError || !image) {
+      return NextResponse.json({ error: 'Image not found' }, { status: 404 });
+    }
+    const eventAccess = await getEventAccess(admin, image.event_id);
+    if (!eventAccess) {
+      return NextResponse.json({ error: 'Unauthorized: Event access denied' }, { status: 403 });
+    }
     const json = await req.json();
     const parsed = ImageUpdateSchema.safeParse(json);
     if (!parsed.success) {
@@ -38,17 +45,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
-    await requireEventEdit(req); // Both admins and moderators can delete images
+    const admin = await requireEventEdit(req); // Admins, moderators, vendors (no vendor_moderator)
+    const { id } = await params;
+    const { data: image, error: imageError } = await supabaseAdmin
+      .from('event_images')
+      .select('id, event_id')
+      .eq('id', id)
+      .single();
+    if (imageError || !image) {
+      return NextResponse.json({ error: 'Image not found' }, { status: 404 });
+    }
+    const eventAccess = await getEventAccess(admin, image.event_id);
+    if (!eventAccess) {
+      return NextResponse.json({ error: 'Unauthorized: Event access denied' }, { status: 403 });
+    }
+
+    const { error } = await supabaseAdmin.from('event_images').delete().eq('id', id);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 403 });
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
-
-  const { id } = await params;
-  const { error } = await supabaseAdmin.from('event_images').delete().eq('id', id);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  return NextResponse.json({ success: true });
 }
-
 

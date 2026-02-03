@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { compressImage } from '@/lib/image-compress';
-import { requireAuth } from '@/lib/admin-auth';
+import { getEventAccess, requireEventEdit } from '@/lib/admin-auth';
 import { NextRequest } from 'next/server';
 
 const BUCKET = process.env.EVENT_IMAGES_BUCKET || process.env.NEXT_PUBLIC_EVENT_IMAGES_BUCKET || 'event-images';
 const MAX_IMAGE_SIZE_KB = 30;
 
 export async function POST(req: NextRequest) {
+  let admin;
   try {
-    await requireAuth(req); // Both admins and moderators can upload images
+    admin = await requireEventEdit(req); // Admins, moderators, vendors (no vendor_moderator)
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 401 });
+    return NextResponse.json({ error: error.message }, { status: 403 });
   }
 
   try {
@@ -29,6 +30,13 @@ export async function POST(req: NextRequest) {
     if (!(file instanceof File)) {
       console.log('[upload] missing file');
       return NextResponse.json({ error: 'Missing file' }, { status: 400 });
+    }
+
+    if (eventId) {
+      const eventAccess = await getEventAccess(admin, eventId);
+      if (!eventAccess) {
+        return NextResponse.json({ error: 'Unauthorized: Event access denied' }, { status: 403 });
+      }
     }
 
     // Check bucket exists (do not auto-create to avoid RLS issues)
@@ -133,5 +141,3 @@ export async function GET() {
     return NextResponse.json({ error: e?.message || 'Internal error' }, { status: 500 });
   }
 }
-
-

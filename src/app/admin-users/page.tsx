@@ -8,7 +8,8 @@ import { AdminUserCreateSchema, AdminUserUpdateSchema, type AdminUserCreateInput
 type AdminUser = {
   id: string;
   email: string;
-  role: 'admin' | 'moderator';
+  role: 'admin' | 'moderator' | 'vendor' | 'vendor_moderator';
+  vendor_id?: string | null;
   created_at: string;
 };
 
@@ -19,7 +20,8 @@ export default function AdminUsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' | 'vendor' | 'vendor_moderator' } | null>(null);
+  const [vendors, setVendors] = useState<{ id: string; email: string }[]>([]);
 
   useEffect(() => {
     // Load current user role
@@ -37,15 +39,37 @@ export default function AdminUsersPage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (currentUser?.role !== 'admin') return;
+    fetch('/api/admin/vendors')
+      .then(res => res.json())
+      .then(data => setVendors(data.vendors ?? []))
+      .catch(() => {});
+  }, [currentUser?.role]);
+
   const createForm = useForm<AdminUserCreateInput>({
     resolver: zodResolver(AdminUserCreateSchema),
-    defaultValues: { email: '', password: '', role: 'admin' },
+    defaultValues: { email: '', password: '', role: 'admin', vendor_id: undefined },
   });
 
   const updateForm = useForm<AdminUserUpdateInput>({
     resolver: zodResolver(AdminUserUpdateSchema),
-    defaultValues: {},
+    defaultValues: { vendor_id: undefined },
   });
+  const createRole = createForm.watch('role');
+  const updateRole = updateForm.watch('role');
+
+  useEffect(() => {
+    if (createRole !== 'vendor_moderator') {
+      createForm.setValue('vendor_id', undefined);
+    }
+  }, [createRole, createForm]);
+
+  useEffect(() => {
+    if (updateRole !== 'vendor_moderator') {
+      updateForm.setValue('vendor_id', undefined);
+    }
+  }, [updateRole, updateForm]);
 
   const load = async () => {
     setLoading(true);
@@ -129,7 +153,7 @@ export default function AdminUsersPage() {
 
   const startEdit = (user: AdminUser) => {
     setEditingUser(user);
-    updateForm.reset({ email: user.email, role: user.role });
+    updateForm.reset({ email: user.email, role: user.role, vendor_id: user.vendor_id ?? undefined });
   };
 
   if (loading || !currentUser) {
@@ -186,6 +210,7 @@ export default function AdminUsersPage() {
                 <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">User</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">Role</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">Vendor</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">Joined</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">Actions</th>
                 </tr>
@@ -193,7 +218,7 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-[var(--hh-border)]">
                 {users.length === 0 ? (
                   <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-[var(--hh-text-secondary)]">
+                  <td colSpan={5} className="px-6 py-12 text-center text-[var(--hh-text-secondary)]">
                     <div className="flex flex-col items-center gap-2">
                       <svg className="w-10 h-10 text-[var(--hh-text-tertiary)] opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -217,11 +242,28 @@ export default function AdminUsersPage() {
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                           user.role === 'admin' 
                           ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' 
-                          : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                          : user.role === 'vendor'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : user.role === 'vendor_moderator'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
                         }`}>
-                        {user.role === 'admin' ? 'Administrator' : 'Moderator'}
+                        {user.role === 'admin'
+                          ? 'Administrator'
+                          : user.role === 'vendor'
+                            ? 'Vendor'
+                            : user.role === 'vendor_moderator'
+                              ? 'Vendor Moderator'
+                              : 'Moderator'}
                         </span>
                       </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--hh-text-secondary)]">
+                      {user.role === 'vendor_moderator'
+                        ? (vendors.find((v) => v.id === user.vendor_id)?.email ?? 'Unassigned')
+                        : user.role === 'vendor'
+                          ? '—'
+                          : '—'}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--hh-text-secondary)]">
                       {new Date(user.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                       </td>
@@ -298,8 +340,26 @@ export default function AdminUsersPage() {
                   <select {...createForm.register('role')} className="hh-input w-full">
                   <option value="admin">Admin (Full Access)</option>
                   <option value="moderator">Moderator (Limited Access)</option>
+                  <option value="vendor">Vendor (Own Events)</option>
+                  <option value="vendor_moderator">Vendor Moderator (Scan Only)</option>
                   </select>
                 </div>
+                {createRole === 'vendor_moderator' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Vendor</label>
+                    <select {...createForm.register('vendor_id')} className="hh-input w-full">
+                      <option value="">Select vendor...</option>
+                      {vendors.map((vendor) => (
+                        <option key={vendor.id} value={vendor.id}>
+                          {vendor.email}
+                        </option>
+                      ))}
+                    </select>
+                    {createForm.formState.errors.vendor_id && (
+                      <p className="mt-1 text-xs text-red-400">{createForm.formState.errors.vendor_id.message}</p>
+                    )}
+                  </div>
+                )}
               <div className="flex gap-3 pt-2">
                   <button
                     type="button"
@@ -364,8 +424,26 @@ export default function AdminUsersPage() {
                   <select {...updateForm.register('role')} className="hh-input w-full">
                   <option value="admin">Admin (Full Access)</option>
                   <option value="moderator">Moderator (Limited Access)</option>
+                  <option value="vendor">Vendor (Own Events)</option>
+                  <option value="vendor_moderator">Vendor Moderator (Scan Only)</option>
                   </select>
                 </div>
+                {updateRole === 'vendor_moderator' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5 text-[var(--hh-text-secondary)]">Vendor</label>
+                    <select {...updateForm.register('vendor_id')} className="hh-input w-full">
+                      <option value="">Select vendor...</option>
+                      {vendors.map((vendor) => (
+                        <option key={vendor.id} value={vendor.id}>
+                          {vendor.email}
+                        </option>
+                      ))}
+                    </select>
+                    {updateForm.formState.errors.vendor_id && (
+                      <p className="mt-1 text-xs text-red-400">{updateForm.formState.errors.vendor_id.message}</p>
+                    )}
+                  </div>
+                )}
               <div className="flex gap-3 pt-2">
                   <button
                     type="button"

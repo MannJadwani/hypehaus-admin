@@ -20,6 +20,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const updates: any = {};
+    if (parsed.data.vendor_id && parsed.data.role !== 'vendor_moderator') {
+      if (!parsed.data.role) {
+        const { data: existingRole } = await supabaseAdmin
+          .from('admin_users')
+          .select('role')
+          .eq('id', id)
+          .single();
+        if (existingRole?.role !== 'vendor_moderator') {
+          return NextResponse.json({ error: 'vendor_id is only allowed for vendor moderators' }, { status: 400 });
+        }
+      } else {
+        return NextResponse.json({ error: 'vendor_id is only allowed for vendor moderators' }, { status: 400 });
+      }
+    }
     if (parsed.data.email) {
       // Check if email already exists (excluding current user)
       const { data: existing } = await supabaseAdmin
@@ -41,6 +55,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (parsed.data.role) {
       updates.role = parsed.data.role;
+      if (parsed.data.role !== 'vendor_moderator') {
+        updates.vendor_id = null;
+      }
+    }
+
+    if ('vendor_id' in parsed.data) {
+      updates.vendor_id = parsed.data.vendor_id ?? null;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -51,7 +72,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       .from('admin_users')
       .update(updates)
       .eq('id', id)
-      .select('id, email, role, created_at')
+      .select('id, email, role, vendor_id, created_at')
       .single();
 
     if (error) {
@@ -99,5 +120,3 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-
-

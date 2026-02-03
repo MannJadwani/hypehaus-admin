@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from('admin_users')
-      .select('id, email, role, created_at')
+      .select('id, email, role, vendor_id, created_at')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -39,7 +39,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
 
-    const { email, password, role } = parsed.data;
+    const { email, password, role, vendor_id } = parsed.data;
+    const resolvedVendorId = role === 'vendor_moderator' ? vendor_id ?? null : null;
 
     // Check if email already exists
     const { data: existing } = await supabaseAdmin
@@ -55,8 +56,8 @@ export async function POST(req: NextRequest) {
     const passwordHash = await bcrypt.hash(password, 10);
     const { data, error } = await supabaseAdmin
       .from('admin_users')
-      .insert({ email, password_hash: passwordHash, role })
-      .select('id, email, role, created_at')
+      .insert({ email, password_hash: passwordHash, role, vendor_id: resolvedVendorId })
+      .select('id, email, role, vendor_id, created_at')
       .single();
 
     if (error) {
@@ -71,4 +72,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

@@ -8,7 +8,7 @@ export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator'; email?: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' | 'vendor' | 'vendor_moderator'; email?: string } | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Load current user role
@@ -36,6 +36,10 @@ export default function Sidebar() {
         }
     }
   }, [isCollapsed]);
+
+  useEffect(() => {
+    setIsCollapsed(false);
+  }, [pathname]);
 
   const logout = async () => {
     setMobileMenuOpen(false);
@@ -136,7 +140,7 @@ export default function Sidebar() {
     <nav className="flex-1 px-3 py-4 space-y-1">
       <NavLink href="/" label="Dashboard" icon={IconHome} />
       <NavLink href="/events" label="Events" icon={IconCalendar} />
-      {currentUser?.role === 'admin' && (
+      {(currentUser?.role === 'admin' || currentUser?.role === 'vendor') && (
         <NavLink href="/events/new" label="Create Event" icon={IconPlus} />
       )}
       <NavLink href="/scan" label="Scan Tickets" icon={IconQr} />
