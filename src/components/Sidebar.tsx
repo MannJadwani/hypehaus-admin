@@ -116,6 +116,14 @@ export default function Sidebar() {
     </svg>
   );
 
+  const IconMegaphone = (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11v2a2 2 0 0 0 2 2h1l4 4v-8l-4 4H5a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h1l4 4V5L6 9H5a2 2 0 0 0-2 2z" />
+      <path d="M15 8a5 5 0 0 1 0 8" />
+      <path d="M19 6a9 9 0 0 1 0 12" />
+    </svg>
+  );
+
   const IconLogout = (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -142,6 +150,9 @@ export default function Sidebar() {
       <NavLink href="/events" label="Events" icon={IconCalendar} />
       {(currentUser?.role === 'admin' || currentUser?.role === 'vendor') && (
         <NavLink href="/events/new" label="Create Event" icon={IconPlus} />
+      )}
+      {(currentUser?.role === 'admin' || currentUser?.role === 'vendor') && (
+        <NavLink href="/ads" label="Ads" icon={IconMegaphone} />
       )}
       <NavLink href="/scan" label="Scan Tickets" icon={IconQr} />
       {currentUser?.role === 'admin' && (
