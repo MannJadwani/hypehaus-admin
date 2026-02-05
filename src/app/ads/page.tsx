@@ -92,21 +92,18 @@ export default function AdsPage() {
       .catch(() => {});
   }, [currentUser?.role]);
 
-  const loadEventOptions = async () => {
-    // /api/events is already vendor-scoped for vendor roles
+  const loadEventOptions = async (q?: string) => {
     try {
       setEventOptionsLoading(true);
-      const res = await fetch('/api/events/options', { cache: 'no-store' });
+      const params = new URLSearchParams();
+      params.set('limit', '50');
+      if (q && q.trim()) params.set('q', q.trim());
+
+      const res = await fetch(`/api/events/options?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json().catch(() => ({}));
-      const events = (data.events ?? []) as any[];
-      const mapped: EventOption[] = events.map((e) => ({
-        id: e.id,
-        title: e.title,
-        start_at: e.start_at ?? null,
-        status: e.status,
-      }));
-      setEventOptions(mapped);
+      const events = (data.events ?? []) as EventOption[];
+      setEventOptions(events);
     } catch {
       // ignore
     } finally {
@@ -205,15 +202,33 @@ export default function AdsPage() {
 
   useEffect(() => {
     if (!showCreateModal) return;
-    loadEventOptions();
     setCreateEventSearch('');
   }, [showCreateModal]);
 
   useEffect(() => {
+    if (!showCreateModal) return;
+    const q = createEventSearch.trim();
+    const delayMs = q ? 250 : 0;
+    const handle = window.setTimeout(() => {
+      loadEventOptions(q);
+    }, delayMs);
+    return () => window.clearTimeout(handle);
+  }, [createEventSearch, showCreateModal]);
+
+  useEffect(() => {
     if (!editingAd) return;
-    loadEventOptions();
     setEditEventSearch('');
   }, [editingAd?.id]);
+
+  useEffect(() => {
+    if (!editingAd) return;
+    const q = editEventSearch.trim();
+    const delayMs = q ? 250 : 0;
+    const handle = window.setTimeout(() => {
+      loadEventOptions(q);
+    }, delayMs);
+    return () => window.clearTimeout(handle);
+  }, [editEventSearch, editingAd?.id]);
 
   const onCreate = async (values: AdCreateInput) => {
     const payload: Record<string, unknown> = { ...values };
@@ -544,18 +559,18 @@ export default function AdsPage() {
                 <div className="p-6 space-y-4 overflow-y-auto min-h-0">
                   {currentUser.role === 'admin' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Vendor</label>
-                        <select className="hh-input px-3 py-2" {...createForm.register('vendor_id')}>
+                        <select className="hh-input w-full min-w-0" {...createForm.register('vendor_id')}>
                           <option value="">—</option>
                           {vendors.map((v) => (
                             <option key={v.id} value={v.id}>{v.email}</option>
                           ))}
                         </select>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Status</label>
-                        <select className="hh-input px-3 py-2" {...createForm.register('status')}>
+                        <select className="hh-input w-full min-w-0" {...createForm.register('status')}>
                           <option value="pending">pending</option>
                           <option value="approved">approved</option>
                           <option value="paused">paused</option>
@@ -566,22 +581,22 @@ export default function AdsPage() {
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Title</label>
-                      <input className="hh-input px-3 py-2" {...createForm.register('title')} placeholder="Ad title" />
+                      <input className="hh-input w-full min-w-0" {...createForm.register('title')} placeholder="Ad title" />
                       {createForm.formState.errors.title && (
                         <p className="mt-1 text-xs text-red-400">{createForm.formState.errors.title.message}</p>
                       )}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">CTA</label>
-                      <input className="hh-input px-3 py-2" {...createForm.register('cta_text')} placeholder="Learn more" />
+                      <input className="hh-input w-full min-w-0" {...createForm.register('cta_text')} placeholder="Learn more" />
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Subtitle (optional)</label>
-                    <input className="hh-input px-3 py-2" {...createForm.register('subtitle')} placeholder="Short supporting line" />
+                    <input className="hh-input w-full min-w-0" {...createForm.register('subtitle')} placeholder="Short supporting line" />
                   </div>
 
                   <div>
@@ -603,23 +618,23 @@ export default function AdsPage() {
                         className="block w-full text-sm text-[var(--hh-text-secondary)] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[var(--hh-bg-elevated)] file:text-[var(--hh-text)] hover:file:bg-[var(--hh-bg-elevated)]/80"
                       />
                     </div>
-                    <input className="hh-input px-3 py-2 mt-2" {...createForm.register('image_url')} placeholder="https://..." />
+                    <input className="hh-input w-full min-w-0 mt-2" {...createForm.register('image_url')} placeholder="https://..." />
                     {createForm.formState.errors.image_url && (
                       <p className="mt-1 text-xs text-red-400">{createForm.formState.errors.image_url.message}</p>
                     )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Promote Event (optional)</label>
                       <input
                         value={createEventSearch}
                         onChange={(e) => setCreateEventSearch(e.target.value)}
-                        className="hh-input px-3 py-2 mb-2"
+                        className="hh-input w-full min-w-0 mb-2"
                         placeholder="Search your events..."
                       />
                       <select
-                        className="hh-input px-3 py-2"
+                        className="hh-input w-full min-w-0"
                         value={createEventId ?? ''}
                         onChange={(e) => {
                           const v = e.target.value || undefined;
@@ -628,7 +643,6 @@ export default function AdsPage() {
                             createForm.setValue('target_url', undefined, { shouldValidate: true });
                           }
                         }}
-                        disabled={eventOptionsLoading}
                       >
                         <option value="">{eventOptionsLoading ? 'Loading events…' : '— Select an event —'}</option>
                         {visibleCreateEvents.map((ev) => (
@@ -643,10 +657,10 @@ export default function AdsPage() {
                         </p>
                       )}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">External URL (optional)</label>
                       <input
-                        className="hh-input px-3 py-2"
+                        className="hh-input w-full min-w-0"
                         {...createForm.register('target_url')}
                         placeholder="https://..."
                         onChange={(e) => {
@@ -669,17 +683,17 @@ export default function AdsPage() {
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Start</label>
-                      <input type="datetime-local" className="hh-input px-3 py-2" {...createForm.register('start_at')} />
+                      <input type="datetime-local" className="hh-input w-full min-w-0" {...createForm.register('start_at')} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">End (optional)</label>
-                      <input type="datetime-local" className="hh-input px-3 py-2" {...createForm.register('end_at')} />
+                      <input type="datetime-local" className="hh-input w-full min-w-0" {...createForm.register('end_at')} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Priority</label>
-                      <input type="number" className="hh-input px-3 py-2" {...createForm.register('priority', { valueAsNumber: true })} />
+                      <input type="number" className="hh-input w-full min-w-0" {...createForm.register('priority', { valueAsNumber: true })} />
                     </div>
                   </div>
                 </div>
@@ -714,18 +728,18 @@ export default function AdsPage() {
                 <div className="p-6 space-y-4 overflow-y-auto min-h-0">
                   {currentUser.role === 'admin' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Vendor</label>
-                        <select className="hh-input px-3 py-2" {...updateForm.register('vendor_id')}>
+                        <select className="hh-input w-full min-w-0" {...updateForm.register('vendor_id')}>
                           <option value="">—</option>
                           {vendors.map((v) => (
                             <option key={v.id} value={v.id}>{v.email}</option>
                           ))}
                         </select>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Status</label>
-                        <select className="hh-input px-3 py-2" {...updateForm.register('status')}>
+                        <select className="hh-input w-full min-w-0" {...updateForm.register('status')}>
                           <option value="pending">pending</option>
                           <option value="approved">approved</option>
                           <option value="paused">paused</option>
@@ -736,19 +750,19 @@ export default function AdsPage() {
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Title</label>
-                      <input className="hh-input px-3 py-2" {...updateForm.register('title')} />
+                      <input className="hh-input w-full min-w-0" {...updateForm.register('title')} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">CTA</label>
-                      <input className="hh-input px-3 py-2" {...updateForm.register('cta_text')} />
+                      <input className="hh-input w-full min-w-0" {...updateForm.register('cta_text')} />
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Subtitle</label>
-                    <input className="hh-input px-3 py-2" {...updateForm.register('subtitle')} />
+                    <input className="hh-input w-full min-w-0" {...updateForm.register('subtitle')} />
                   </div>
 
                   <div>
@@ -768,20 +782,20 @@ export default function AdsPage() {
                       }}
                       className="block w-full text-sm text-[var(--hh-text-secondary)] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[var(--hh-bg-elevated)] file:text-[var(--hh-text)] hover:file:bg-[var(--hh-bg-elevated)]/80"
                     />
-                    <input className="hh-input px-3 py-2 mt-2" {...updateForm.register('image_url')} />
+                    <input className="hh-input w-full min-w-0 mt-2" {...updateForm.register('image_url')} />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Promote Event (optional)</label>
                       <input
                         value={editEventSearch}
                         onChange={(e) => setEditEventSearch(e.target.value)}
-                        className="hh-input px-3 py-2 mb-2"
+                        className="hh-input w-full min-w-0 mb-2"
                         placeholder="Search events..."
                       />
                       <select
-                        className="hh-input px-3 py-2"
+                        className="hh-input w-full min-w-0"
                         value={editEventId ?? ''}
                         onChange={(e) => {
                           const v = e.target.value || undefined;
@@ -790,7 +804,6 @@ export default function AdsPage() {
                             updateForm.setValue('target_url', undefined, { shouldValidate: true });
                           }
                         }}
-                        disabled={eventOptionsLoading}
                       >
                         <option value="">{eventOptionsLoading ? 'Loading events…' : '— Select an event —'}</option>
                         {visibleEditEvents.map((ev) => (
@@ -800,10 +813,10 @@ export default function AdsPage() {
                         ))}
                       </select>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">External URL (optional)</label>
                       <input
-                        className="hh-input px-3 py-2"
+                        className="hh-input w-full min-w-0"
                         {...updateForm.register('target_url')}
                         onChange={(e) => {
                           updateForm.setValue('target_url', e.target.value || undefined, { shouldValidate: true });
@@ -821,17 +834,17 @@ export default function AdsPage() {
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Start</label>
-                      <input type="datetime-local" className="hh-input px-3 py-2" {...updateForm.register('start_at')} />
+                      <input type="datetime-local" className="hh-input w-full min-w-0" {...updateForm.register('start_at')} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">End</label>
-                      <input type="datetime-local" className="hh-input px-3 py-2" {...updateForm.register('end_at')} />
+                      <input type="datetime-local" className="hh-input w-full min-w-0" {...updateForm.register('end_at')} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Priority</label>
-                      <input type="number" className="hh-input px-3 py-2" {...updateForm.register('priority', { valueAsNumber: true })} />
+                      <input type="number" className="hh-input w-full min-w-0" {...updateForm.register('priority', { valueAsNumber: true })} />
                     </div>
                   </div>
                 </div>
