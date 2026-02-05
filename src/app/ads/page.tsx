@@ -547,7 +547,7 @@ export default function AdsPage() {
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setShowCreateModal(false)} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="w-full max-w-2xl bg-[var(--hh-bg-card)] border border-[var(--hh-border)] rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col min-h-0">
-              <div className="p-6 border-b border-[var(--hh-border)] flex items-center justify-between">
+              <div className="p-6 border-b border-[var(--hh-border)] flex items-center justify-between shrink-0">
                 <h2 className="text-lg font-semibold text-[var(--hh-text)]">New Ad</h2>
                 <button onClick={() => setShowCreateModal(false)} className="p-2 rounded-lg hover:bg-[var(--hh-bg-elevated)] text-[var(--hh-text-secondary)]">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -556,7 +556,7 @@ export default function AdsPage() {
                 </button>
               </div>
               <form className="flex-1 overflow-hidden flex flex-col min-h-0" onSubmit={createForm.handleSubmit(onCreate)}>
-                <div className="p-6 space-y-4 overflow-y-auto min-h-0">
+                <div className="p-6 space-y-4 overflow-y-auto min-h-0 flex-1">
                   {currentUser.role === 'admin' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="min-w-0">
@@ -698,7 +698,8 @@ export default function AdsPage() {
                   </div>
                 </div>
 
-                <div className="p-6 border-t border-[var(--hh-border)] bg-[var(--hh-bg-card)]/95 flex items-center justify-end gap-3"
+                <div
+                  className="p-6 border-t border-[var(--hh-border)] bg-[var(--hh-bg-card)]/95 flex items-center justify-end gap-3 shrink-0"
                   style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
                 >
                   <button type="button" className="hh-btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
@@ -716,7 +717,7 @@ export default function AdsPage() {
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setEditingAd(null)} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="w-full max-w-2xl bg-[var(--hh-bg-card)] border border-[var(--hh-border)] rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col min-h-0">
-              <div className="p-6 border-b border-[var(--hh-border)] flex items-center justify-between">
+              <div className="p-6 border-b border-[var(--hh-border)] flex items-center justify-between shrink-0">
                 <h2 className="text-lg font-semibold text-[var(--hh-text)]">Edit Ad</h2>
                 <button onClick={() => setEditingAd(null)} className="p-2 rounded-lg hover:bg-[var(--hh-bg-elevated)] text-[var(--hh-text-secondary)]">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -725,7 +726,7 @@ export default function AdsPage() {
                 </button>
               </div>
               <form className="flex-1 overflow-hidden flex flex-col min-h-0" onSubmit={updateForm.handleSubmit(onUpdate)}>
-                <div className="p-6 space-y-4 overflow-y-auto min-h-0">
+                <div className="p-6 space-y-4 overflow-y-auto min-h-0 flex-1">
                   {currentUser.role === 'admin' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="min-w-0">
@@ -849,7 +850,8 @@ export default function AdsPage() {
                   </div>
                 </div>
 
-                <div className="p-6 border-t border-[var(--hh-border)] bg-[var(--hh-bg-card)]/95 flex items-center justify-end gap-3"
+                <div
+                  className="p-6 border-t border-[var(--hh-border)] bg-[var(--hh-bg-card)]/95 flex items-center justify-end gap-3 shrink-0"
                   style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
                 >
                   <button type="button" className="hh-btn-secondary" onClick={() => setEditingAd(null)}>Cancel</button>
