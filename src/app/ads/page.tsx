@@ -7,6 +7,13 @@ import { AdCreateSchema, AdUpdateSchema, type AdCreateInput, type AdUpdateInput 
 
 type Role = 'admin' | 'moderator' | 'vendor' | 'vendor_moderator';
 
+type EventOption = {
+  id: string;
+  title: string;
+  start_at: string | null;
+  status: 'draft' | 'published' | 'archived';
+};
+
 type Ad = {
   id: string;
   vendor_id: string | null;
@@ -49,6 +56,7 @@ export default function AdsPage() {
   const [currentUser, setCurrentUser] = useState<{ role: Role; id?: string } | null>(null);
   const [ads, setAds] = useState<Ad[]>([]);
   const [vendors, setVendors] = useState<{ id: string; email: string }[]>([]);
+  const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +66,9 @@ export default function AdsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAd, setEditingAd] = useState<Ad | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  const [createEventSearch, setCreateEventSearch] = useState('');
+  const [editEventSearch, setEditEventSearch] = useState('');
 
   useEffect(() => {
     fetch('/api/admin/me')
@@ -79,6 +90,25 @@ export default function AdsPage() {
       .then((data) => setVendors(data.vendors ?? []))
       .catch(() => {});
   }, [currentUser?.role]);
+
+  const loadEventOptions = async () => {
+    // /api/events is already vendor-scoped for vendor roles
+    try {
+      const res = await fetch('/api/events', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => ({}));
+      const events = (data.events ?? []) as any[];
+      const mapped: EventOption[] = events.map((e) => ({
+        id: e.id,
+        title: e.title,
+        start_at: e.start_at ?? null,
+        status: e.status,
+      }));
+      setEventOptions(mapped);
+    } catch {
+      // ignore
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -127,6 +157,11 @@ export default function AdsPage() {
     resolver: zodResolver(AdUpdateSchema),
   });
 
+  const createEventId = createForm.watch('event_id');
+  const createTargetUrl = createForm.watch('target_url');
+  const editEventId = updateForm.watch('event_id');
+  const editTargetUrl = updateForm.watch('target_url');
+
   const filtered = useMemo(() => {
     let rows = ads.slice();
     if (q.trim()) {
@@ -151,6 +186,30 @@ export default function AdsPage() {
     if (!res.ok) throw new Error(data?.error || 'Image upload failed');
     return data.url as string;
   };
+
+  const visibleCreateEvents = useMemo(() => {
+    const s = createEventSearch.trim().toLowerCase();
+    if (!s) return eventOptions;
+    return eventOptions.filter((e) => e.title.toLowerCase().includes(s));
+  }, [createEventSearch, eventOptions]);
+
+  const visibleEditEvents = useMemo(() => {
+    const s = editEventSearch.trim().toLowerCase();
+    if (!s) return eventOptions;
+    return eventOptions.filter((e) => e.title.toLowerCase().includes(s));
+  }, [editEventSearch, eventOptions]);
+
+  useEffect(() => {
+    if (!showCreateModal) return;
+    loadEventOptions();
+    setCreateEventSearch('');
+  }, [showCreateModal]);
+
+  useEffect(() => {
+    if (!editingAd) return;
+    loadEventOptions();
+    setEditEventSearch('');
+  }, [editingAd?.id]);
 
   const onCreate = async (values: AdCreateInput) => {
     const payload: Record<string, unknown> = { ...values };
@@ -468,7 +527,7 @@ export default function AdsPage() {
         <>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setShowCreateModal(false)} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="w-full max-w-2xl bg-[var(--hh-bg-card)] border border-[var(--hh-border)] rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="w-full max-w-2xl bg-[var(--hh-bg-card)] border border-[var(--hh-border)] rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
               <div className="p-6 border-b border-[var(--hh-border)] flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-[var(--hh-text)]">New Ad</h2>
                 <button onClick={() => setShowCreateModal(false)} className="p-2 rounded-lg hover:bg-[var(--hh-bg-elevated)] text-[var(--hh-text-secondary)]">
@@ -477,107 +536,150 @@ export default function AdsPage() {
                   </svg>
                 </button>
               </div>
-              <form
-                className="p-6 space-y-4"
-                onSubmit={createForm.handleSubmit(onCreate)}
-              >
-                {currentUser.role === 'admin' && (
+              <form className="flex-1 overflow-hidden flex flex-col" onSubmit={createForm.handleSubmit(onCreate)}>
+                <div className="p-6 space-y-4 overflow-y-auto">
+                  {currentUser.role === 'admin' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Vendor</label>
+                        <select className="hh-input px-3 py-2" {...createForm.register('vendor_id')}>
+                          <option value="">—</option>
+                          {vendors.map((v) => (
+                            <option key={v.id} value={v.id}>{v.email}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Status</label>
+                        <select className="hh-input px-3 py-2" {...createForm.register('status')}>
+                          <option value="pending">pending</option>
+                          <option value="approved">approved</option>
+                          <option value="paused">paused</option>
+                          <option value="rejected">rejected</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Vendor</label>
-                      <select className="hh-input px-3 py-2" {...createForm.register('vendor_id')}>
-                        <option value="">—</option>
-                        {vendors.map((v) => (
-                          <option key={v.id} value={v.id}>{v.email}</option>
-                        ))}
-                      </select>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Title</label>
+                      <input className="hh-input px-3 py-2" {...createForm.register('title')} placeholder="Ad title" />
+                      {createForm.formState.errors.title && (
+                        <p className="mt-1 text-xs text-red-400">{createForm.formState.errors.title.message}</p>
+                      )}
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Status</label>
-                      <select className="hh-input px-3 py-2" {...createForm.register('status')}>
-                        <option value="pending">pending</option>
-                        <option value="approved">approved</option>
-                        <option value="paused">paused</option>
-                        <option value="rejected">rejected</option>
-                      </select>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">CTA</label>
+                      <input className="hh-input px-3 py-2" {...createForm.register('cta_text')} placeholder="Learn more" />
                     </div>
                   </div>
-                )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Title</label>
-                    <input className="hh-input px-3 py-2" {...createForm.register('title')} placeholder="Ad title" />
-                    {createForm.formState.errors.title && (
-                      <p className="mt-1 text-xs text-red-400">{createForm.formState.errors.title.message}</p>
+                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Subtitle (optional)</label>
+                    <input className="hh-input px-3 py-2" {...createForm.register('subtitle')} placeholder="Short supporting line" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Image</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const url = await uploadImage(file);
+                            createForm.setValue('image_url', url, { shouldValidate: true });
+                          } catch (err: unknown) {
+                            alert(err instanceof Error ? err.message : 'Failed to upload image');
+                          }
+                        }}
+                        className="block w-full text-sm text-[var(--hh-text-secondary)] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[var(--hh-bg-elevated)] file:text-[var(--hh-text)] hover:file:bg-[var(--hh-bg-elevated)]/80"
+                      />
+                    </div>
+                    <input className="hh-input px-3 py-2 mt-2" {...createForm.register('image_url')} placeholder="https://..." />
+                    {createForm.formState.errors.image_url && (
+                      <p className="mt-1 text-xs text-red-400">{createForm.formState.errors.image_url.message}</p>
                     )}
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">CTA</label>
-                    <input className="hh-input px-3 py-2" {...createForm.register('cta_text')} placeholder="Learn more" />
-                  </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Subtitle (optional)</label>
-                  <input className="hh-input px-3 py-2" {...createForm.register('subtitle')} placeholder="Short supporting line" />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Image</label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        try {
-                          const url = await uploadImage(file);
-                          createForm.setValue('image_url', url, { shouldValidate: true });
-                        } catch (err: unknown) {
-                          alert(err instanceof Error ? err.message : 'Failed to upload image');
-                        }
-                      }}
-                      className="block w-full text-sm text-[var(--hh-text-secondary)] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[var(--hh-bg-elevated)] file:text-[var(--hh-text)] hover:file:bg-[var(--hh-bg-elevated)]/80"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Promote Event (optional)</label>
+                      <input
+                        value={createEventSearch}
+                        onChange={(e) => setCreateEventSearch(e.target.value)}
+                        className="hh-input px-3 py-2 mb-2"
+                        placeholder="Search your events..."
+                      />
+                      <select
+                        className="hh-input px-3 py-2"
+                        value={createEventId ?? ''}
+                        onChange={(e) => {
+                          const v = e.target.value || undefined;
+                          createForm.setValue('event_id', v, { shouldValidate: true });
+                          if (v) {
+                            createForm.setValue('target_url', undefined, { shouldValidate: true });
+                          }
+                        }}
+                      >
+                        <option value="">— Select an event —</option>
+                        {visibleCreateEvents.map((ev) => (
+                          <option key={ev.id} value={ev.id}>
+                            {ev.title}{ev.start_at ? ` • ${new Date(ev.start_at).toLocaleDateString()}` : ''}{ev.status !== 'published' ? ` • ${ev.status}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {createEventId && (
+                        <p className="mt-1 text-xs text-[var(--hh-text-tertiary)]">
+                          Linking to an event will override any external URL.
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">External URL (optional)</label>
+                      <input
+                        className="hh-input px-3 py-2"
+                        {...createForm.register('target_url')}
+                        placeholder="https://..."
+                        onChange={(e) => {
+                          createForm.setValue('target_url', e.target.value || undefined, { shouldValidate: true });
+                          if (e.target.value) {
+                            createForm.setValue('event_id', undefined, { shouldValidate: true });
+                          }
+                        }}
+                        value={createTargetUrl ?? ''}
+                      />
+                      {createTargetUrl && (
+                        <p className="mt-1 text-xs text-[var(--hh-text-tertiary)]">
+                          Adding an external URL will clear the event selection.
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <input className="hh-input px-3 py-2 mt-2" {...createForm.register('image_url')} placeholder="https://..." />
-                  {createForm.formState.errors.image_url && (
-                    <p className="mt-1 text-xs text-red-400">{createForm.formState.errors.image_url.message}</p>
+                  {(createForm.formState.errors.target_url || createForm.formState.errors.event_id) && (
+                    <p className="text-xs text-red-400">Provide either a target URL or an event.</p>
                   )}
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Target URL</label>
-                    <input className="hh-input px-3 py-2" {...createForm.register('target_url')} placeholder="https://..." />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Event ID (optional)</label>
-                    <input className="hh-input px-3 py-2" {...createForm.register('event_id')} placeholder="uuid" />
-                  </div>
-                </div>
-                {(createForm.formState.errors.target_url || createForm.formState.errors.event_id) && (
-                  <p className="text-xs text-red-400">Provide either a target URL or an event ID.</p>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Start</label>
-                    <input type="datetime-local" className="hh-input px-3 py-2" {...createForm.register('start_at')} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">End (optional)</label>
-                    <input type="datetime-local" className="hh-input px-3 py-2" {...createForm.register('end_at')} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Priority</label>
-                    <input type="number" className="hh-input px-3 py-2" {...createForm.register('priority', { valueAsNumber: true })} />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Start</label>
+                      <input type="datetime-local" className="hh-input px-3 py-2" {...createForm.register('start_at')} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">End (optional)</label>
+                      <input type="datetime-local" className="hh-input px-3 py-2" {...createForm.register('end_at')} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Priority</label>
+                      <input type="number" className="hh-input px-3 py-2" {...createForm.register('priority', { valueAsNumber: true })} />
+                    </div>
                   </div>
                 </div>
 
-                <div className="pt-2 flex items-center justify-end gap-3">
+                <div className="p-6 border-t border-[var(--hh-border)] bg-[var(--hh-bg-card)]/95 flex items-center justify-end gap-3">
                   <button type="button" className="hh-btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
                   <button type="submit" className="hh-btn-primary">Create</button>
                 </div>
@@ -592,7 +694,7 @@ export default function AdsPage() {
         <>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setEditingAd(null)} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="w-full max-w-2xl bg-[var(--hh-bg-card)] border border-[var(--hh-border)] rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="w-full max-w-2xl bg-[var(--hh-bg-card)] border border-[var(--hh-border)] rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
               <div className="p-6 border-b border-[var(--hh-border)] flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-[var(--hh-text)]">Edit Ad</h2>
                 <button onClick={() => setEditingAd(null)} className="p-2 rounded-lg hover:bg-[var(--hh-bg-elevated)] text-[var(--hh-text-secondary)]">
@@ -601,93 +703,132 @@ export default function AdsPage() {
                   </svg>
                 </button>
               </div>
-              <form className="p-6 space-y-4" onSubmit={updateForm.handleSubmit(onUpdate)}>
-                {currentUser.role === 'admin' && (
+              <form className="flex-1 overflow-hidden flex flex-col" onSubmit={updateForm.handleSubmit(onUpdate)}>
+                <div className="p-6 space-y-4 overflow-y-auto">
+                  {currentUser.role === 'admin' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Vendor</label>
+                        <select className="hh-input px-3 py-2" {...updateForm.register('vendor_id')}>
+                          <option value="">—</option>
+                          {vendors.map((v) => (
+                            <option key={v.id} value={v.id}>{v.email}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Status</label>
+                        <select className="hh-input px-3 py-2" {...updateForm.register('status')}>
+                          <option value="pending">pending</option>
+                          <option value="approved">approved</option>
+                          <option value="paused">paused</option>
+                          <option value="rejected">rejected</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Vendor</label>
-                      <select className="hh-input px-3 py-2" {...updateForm.register('vendor_id')}>
-                        <option value="">—</option>
-                        {vendors.map((v) => (
-                          <option key={v.id} value={v.id}>{v.email}</option>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Title</label>
+                      <input className="hh-input px-3 py-2" {...updateForm.register('title')} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">CTA</label>
+                      <input className="hh-input px-3 py-2" {...updateForm.register('cta_text')} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Subtitle</label>
+                    <input className="hh-input px-3 py-2" {...updateForm.register('subtitle')} />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Image</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const url = await uploadImage(file);
+                          updateForm.setValue('image_url', url, { shouldValidate: true });
+                        } catch (err: unknown) {
+                          alert(err instanceof Error ? err.message : 'Failed to upload image');
+                        }
+                      }}
+                      className="block w-full text-sm text-[var(--hh-text-secondary)] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[var(--hh-bg-elevated)] file:text-[var(--hh-text)] hover:file:bg-[var(--hh-bg-elevated)]/80"
+                    />
+                    <input className="hh-input px-3 py-2 mt-2" {...updateForm.register('image_url')} />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Promote Event (optional)</label>
+                      <input
+                        value={editEventSearch}
+                        onChange={(e) => setEditEventSearch(e.target.value)}
+                        className="hh-input px-3 py-2 mb-2"
+                        placeholder="Search events..."
+                      />
+                      <select
+                        className="hh-input px-3 py-2"
+                        value={editEventId ?? ''}
+                        onChange={(e) => {
+                          const v = e.target.value || undefined;
+                          updateForm.setValue('event_id', v, { shouldValidate: true });
+                          if (v) {
+                            updateForm.setValue('target_url', undefined, { shouldValidate: true });
+                          }
+                        }}
+                      >
+                        <option value="">— Select an event —</option>
+                        {visibleEditEvents.map((ev) => (
+                          <option key={ev.id} value={ev.id}>
+                            {ev.title}{ev.start_at ? ` • ${new Date(ev.start_at).toLocaleDateString()}` : ''}{ev.status !== 'published' ? ` • ${ev.status}` : ''}
+                          </option>
                         ))}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Status</label>
-                      <select className="hh-input px-3 py-2" {...updateForm.register('status')}>
-                        <option value="pending">pending</option>
-                        <option value="approved">approved</option>
-                        <option value="paused">paused</option>
-                        <option value="rejected">rejected</option>
-                      </select>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">External URL (optional)</label>
+                      <input
+                        className="hh-input px-3 py-2"
+                        {...updateForm.register('target_url')}
+                        onChange={(e) => {
+                          updateForm.setValue('target_url', e.target.value || undefined, { shouldValidate: true });
+                          if (e.target.value) {
+                            updateForm.setValue('event_id', undefined, { shouldValidate: true });
+                          }
+                        }}
+                        value={editTargetUrl ?? ''}
+                      />
                     </div>
                   </div>
-                )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Title</label>
-                    <input className="hh-input px-3 py-2" {...updateForm.register('title')} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">CTA</label>
-                    <input className="hh-input px-3 py-2" {...updateForm.register('cta_text')} />
+                  {(updateForm.formState.errors.target_url || updateForm.formState.errors.event_id) && (
+                    <p className="text-xs text-red-400">Provide either a target URL or an event.</p>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Start</label>
+                      <input type="datetime-local" className="hh-input px-3 py-2" {...updateForm.register('start_at')} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">End</label>
+                      <input type="datetime-local" className="hh-input px-3 py-2" {...updateForm.register('end_at')} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Priority</label>
+                      <input type="number" className="hh-input px-3 py-2" {...updateForm.register('priority', { valueAsNumber: true })} />
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Subtitle</label>
-                  <input className="hh-input px-3 py-2" {...updateForm.register('subtitle')} />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Image</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try {
-                        const url = await uploadImage(file);
-                        updateForm.setValue('image_url', url, { shouldValidate: true });
-                      } catch (err: unknown) {
-                        alert(err instanceof Error ? err.message : 'Failed to upload image');
-                      }
-                    }}
-                    className="block w-full text-sm text-[var(--hh-text-secondary)] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[var(--hh-bg-elevated)] file:text-[var(--hh-text)] hover:file:bg-[var(--hh-bg-elevated)]/80"
-                  />
-                  <input className="hh-input px-3 py-2 mt-2" {...updateForm.register('image_url')} />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Target URL</label>
-                    <input className="hh-input px-3 py-2" {...updateForm.register('target_url')} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Event ID</label>
-                    <input className="hh-input px-3 py-2" {...updateForm.register('event_id')} />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Start</label>
-                    <input type="datetime-local" className="hh-input px-3 py-2" {...updateForm.register('start_at')} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">End</label>
-                    <input type="datetime-local" className="hh-input px-3 py-2" {...updateForm.register('end_at')} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Priority</label>
-                    <input type="number" className="hh-input px-3 py-2" {...updateForm.register('priority', { valueAsNumber: true })} />
-                  </div>
-                </div>
-
-                <div className="pt-2 flex items-center justify-end gap-3">
+                <div className="p-6 border-t border-[var(--hh-border)] bg-[var(--hh-bg-card)]/95 flex items-center justify-end gap-3">
                   <button type="button" className="hh-btn-secondary" onClick={() => setEditingAd(null)}>Cancel</button>
                   <button type="submit" className="hh-btn-primary">Save</button>
                 </div>
