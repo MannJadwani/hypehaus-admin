@@ -57,6 +57,7 @@ export default function AdsPage() {
   const [ads, setAds] = useState<Ad[]>([]);
   const [vendors, setVendors] = useState<{ id: string; email: string }[]>([]);
   const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
+  const [eventOptionsLoading, setEventOptionsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,7 +95,8 @@ export default function AdsPage() {
   const loadEventOptions = async () => {
     // /api/events is already vendor-scoped for vendor roles
     try {
-      const res = await fetch('/api/events', { cache: 'no-store' });
+      setEventOptionsLoading(true);
+      const res = await fetch('/api/events/options', { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json().catch(() => ({}));
       const events = (data.events ?? []) as any[];
@@ -107,6 +109,8 @@ export default function AdsPage() {
       setEventOptions(mapped);
     } catch {
       // ignore
+    } finally {
+      setEventOptionsLoading(false);
     }
   };
 
@@ -527,7 +531,7 @@ export default function AdsPage() {
         <>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setShowCreateModal(false)} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="w-full max-w-2xl bg-[var(--hh-bg-card)] border border-[var(--hh-border)] rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="w-full max-w-2xl bg-[var(--hh-bg-card)] border border-[var(--hh-border)] rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col min-h-0">
               <div className="p-6 border-b border-[var(--hh-border)] flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-[var(--hh-text)]">New Ad</h2>
                 <button onClick={() => setShowCreateModal(false)} className="p-2 rounded-lg hover:bg-[var(--hh-bg-elevated)] text-[var(--hh-text-secondary)]">
@@ -536,8 +540,8 @@ export default function AdsPage() {
                   </svg>
                 </button>
               </div>
-              <form className="flex-1 overflow-hidden flex flex-col" onSubmit={createForm.handleSubmit(onCreate)}>
-                <div className="p-6 space-y-4 overflow-y-auto">
+              <form className="flex-1 overflow-hidden flex flex-col min-h-0" onSubmit={createForm.handleSubmit(onCreate)}>
+                <div className="p-6 space-y-4 overflow-y-auto min-h-0">
                   {currentUser.role === 'admin' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
@@ -624,8 +628,9 @@ export default function AdsPage() {
                             createForm.setValue('target_url', undefined, { shouldValidate: true });
                           }
                         }}
+                        disabled={eventOptionsLoading}
                       >
-                        <option value="">— Select an event —</option>
+                        <option value="">{eventOptionsLoading ? 'Loading events…' : '— Select an event —'}</option>
                         {visibleCreateEvents.map((ev) => (
                           <option key={ev.id} value={ev.id}>
                             {ev.title}{ev.start_at ? ` • ${new Date(ev.start_at).toLocaleDateString()}` : ''}{ev.status !== 'published' ? ` • ${ev.status}` : ''}
@@ -679,7 +684,9 @@ export default function AdsPage() {
                   </div>
                 </div>
 
-                <div className="p-6 border-t border-[var(--hh-border)] bg-[var(--hh-bg-card)]/95 flex items-center justify-end gap-3">
+                <div className="p-6 border-t border-[var(--hh-border)] bg-[var(--hh-bg-card)]/95 flex items-center justify-end gap-3"
+                  style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+                >
                   <button type="button" className="hh-btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
                   <button type="submit" className="hh-btn-primary">Create</button>
                 </div>
@@ -694,7 +701,7 @@ export default function AdsPage() {
         <>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setEditingAd(null)} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="w-full max-w-2xl bg-[var(--hh-bg-card)] border border-[var(--hh-border)] rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="w-full max-w-2xl bg-[var(--hh-bg-card)] border border-[var(--hh-border)] rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col min-h-0">
               <div className="p-6 border-b border-[var(--hh-border)] flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-[var(--hh-text)]">Edit Ad</h2>
                 <button onClick={() => setEditingAd(null)} className="p-2 rounded-lg hover:bg-[var(--hh-bg-elevated)] text-[var(--hh-text-secondary)]">
@@ -703,8 +710,8 @@ export default function AdsPage() {
                   </svg>
                 </button>
               </div>
-              <form className="flex-1 overflow-hidden flex flex-col" onSubmit={updateForm.handleSubmit(onUpdate)}>
-                <div className="p-6 space-y-4 overflow-y-auto">
+              <form className="flex-1 overflow-hidden flex flex-col min-h-0" onSubmit={updateForm.handleSubmit(onUpdate)}>
+                <div className="p-6 space-y-4 overflow-y-auto min-h-0">
                   {currentUser.role === 'admin' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
@@ -783,8 +790,9 @@ export default function AdsPage() {
                             updateForm.setValue('target_url', undefined, { shouldValidate: true });
                           }
                         }}
+                        disabled={eventOptionsLoading}
                       >
-                        <option value="">— Select an event —</option>
+                        <option value="">{eventOptionsLoading ? 'Loading events…' : '— Select an event —'}</option>
                         {visibleEditEvents.map((ev) => (
                           <option key={ev.id} value={ev.id}>
                             {ev.title}{ev.start_at ? ` • ${new Date(ev.start_at).toLocaleDateString()}` : ''}{ev.status !== 'published' ? ` • ${ev.status}` : ''}
@@ -828,7 +836,9 @@ export default function AdsPage() {
                   </div>
                 </div>
 
-                <div className="p-6 border-t border-[var(--hh-border)] bg-[var(--hh-bg-card)]/95 flex items-center justify-end gap-3">
+                <div className="p-6 border-t border-[var(--hh-border)] bg-[var(--hh-bg-card)]/95 flex items-center justify-end gap-3"
+                  style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+                >
                   <button type="button" className="hh-btn-secondary" onClick={() => setEditingAd(null)}>Cancel</button>
                   <button type="submit" className="hh-btn-primary">Save</button>
                 </div>
