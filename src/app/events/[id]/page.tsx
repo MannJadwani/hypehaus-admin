@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -40,14 +40,26 @@ type EventDetail = {
   currency: string | null;
   status: 'draft' | 'published' | 'archived';
   vendor_id: string | null;
+  allow_cab: boolean;
+  require_instagram_verification: boolean;
+  require_email_domain_verification: boolean;
+  allowed_email_domains: string[] | null;
 };
 
 const categories = ['Music', 'Tech', 'Comedy', 'Art', 'Sports'] as const;
+const parseAllowedDomains = (value: string): string[] =>
+  Array.from(
+    new Set(
+      value
+        .split(/[\n,]/)
+        .map((domain) => domain.trim().toLowerCase().replace(/^@/, ''))
+        .filter(Boolean)
+    )
+  );
 
 export default function EditEventPage() {
   const params = useParams<{ id: string }>();
   const eventId = params.id;
-  const router = useRouter();
   const [currentUser, setCurrentUser] = useState<{ role: 'admin' | 'moderator' | 'vendor' | 'vendor_moderator' } | null>(null);
   const [vendors, setVendors] = useState<{ id: string; email: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +67,7 @@ export default function EditEventPage() {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [images, setImages] = useState<Image[]>([]);
+  const [allowedEmailDomainsInput, setAllowedEmailDomainsInput] = useState('');
 
   const {
     register,
@@ -108,7 +121,12 @@ export default function EditEventPage() {
       base_price_cents: data.event.base_price_cents ?? 0,
       currency: data.event.currency ?? 'INR',
       status: data.event.status,
+      allow_cab: !!data.event.allow_cab,
+      require_instagram_verification: !!data.event.require_instagram_verification,
+      require_email_domain_verification: !!data.event.require_email_domain_verification,
+      allowed_email_domains: data.event.allowed_email_domains ?? [],
     });
+    setAllowedEmailDomainsInput((data.event.allowed_email_domains ?? []).join('\n'));
     setLoading(false);
   };
 
@@ -143,6 +161,7 @@ export default function EditEventPage() {
       ...values,
       start_at: values.start_at ? new Date(values.start_at).toISOString() : undefined,
       end_at: values.end_at ? new Date(values.end_at).toISOString() : undefined,
+      allowed_email_domains: parseAllowedDomains(allowedEmailDomainsInput),
     };
 
     const res = await fetch(`/api/events/${eventId}`, {
@@ -418,6 +437,33 @@ export default function EditEventPage() {
           </div>
           {currentUser?.role !== 'admin' && (
             <p className="mt-1 text-xs text-[var(--hh-text-tertiary)]">Only admins can enable cab options.</p>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Require Instagram verification</label>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" className="h-4 w-4" {...register('require_instagram_verification')} disabled={!canEdit || currentUser?.role !== 'admin'} />
+            <span className="text-[var(--hh-text-secondary)] text-sm">Buyers must submit Instagram handle and be approved before entry.</span>
+          </div>
+          {currentUser?.role !== 'admin' && (
+            <p className="mt-1 text-xs text-[var(--hh-text-tertiary)]">Only admins can configure Instagram verification.</p>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Restrict to school/college email domains</label>
+          <div className="flex items-center gap-2 mb-2">
+            <input type="checkbox" className="h-4 w-4" {...register('require_email_domain_verification')} disabled={!canEdit || currentUser?.role !== 'admin'} />
+            <span className="text-[var(--hh-text-secondary)] text-sm">Only listed domains can complete checkout.</span>
+          </div>
+          <textarea
+            value={allowedEmailDomainsInput}
+            onChange={(event) => setAllowedEmailDomainsInput(event.target.value)}
+            className="w-full hh-input px-3 py-2 text-sm min-h-[96px]"
+            placeholder={'One domain per line or comma-separated\nexample.edu\ncampus.ac.in'}
+            disabled={!canEdit || currentUser?.role !== 'admin'}
+          />
+          {currentUser?.role !== 'admin' && (
+            <p className="mt-1 text-xs text-[var(--hh-text-tertiary)]">Only admins can configure allowed email domains.</p>
           )}
         </div>
         <div className="flex flex-col sm:flex-row gap-2">

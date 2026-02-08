@@ -19,20 +19,33 @@ type Attendee = {
   whatsapp_number: string | null;
   created_at: string | null;
   cab_requested?: boolean;
+  instagram_handle?: string | null;
+  instagram_verification_status?: 'not_required' | 'pending' | 'approved' | 'rejected';
+  email_domain?: string | null;
+  email_domain_status?: 'not_required' | 'approved' | 'rejected';
+};
+
+type EventGate = {
+  id: string;
+  require_instagram_verification: boolean;
+  require_email_domain_verification: boolean;
+  allowed_email_domains: string[] | null;
 };
 
 export default function AttendeesPage() {
   const params = useParams<{ id: string }>();
   const eventId = params.id;
   const [rows, setRows] = useState<Attendee[]>([]);
+  const [eventGate, setEventGate] = useState<EventGate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<'all'|'active'|'used'|'cancelled'>('all');
 
   // Column visibility (persisted per event)
   const COLS_KEY = `attendees_table_cols_${eventId}`;
-  const defaultVisible = ['attendee','buyer','email','phone','cab','status','scan'] as const;
+  const defaultVisible = ['attendee','buyer','email','phone','instagram','ig_status','ig_action','email_domain','email_status','cab','status','scan'] as const;
   const [visibleCols, setVisibleCols] = useState<string[]>([...defaultVisible]);
   const [showColsPanel, setShowColsPanel] = useState(false);
 
@@ -60,7 +73,27 @@ export default function AttendeesPage() {
     const data = await res.json();
     const withId: Attendee[] = (data.attendees ?? []).map((r: any) => ({ id: r.ticket_id, ...r }));
     setRows(withId);
+    setEventGate(data.event ?? null);
     setLoading(false);
+  };
+
+  const updateInstagramStatus = async (orderId: string, nextStatus: 'approved' | 'rejected') => {
+    setUpdatingOrderId(orderId);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/instagram`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body?.error ?? 'Failed to update Instagram verification status');
+        return;
+      }
+      await load();
+    } finally {
+      setUpdatingOrderId(null);
+    }
   };
 
   useEffect(() => { load(); }, [eventId]);
@@ -69,14 +102,27 @@ export default function AttendeesPage() {
     let out = rows.slice();
     if (q.trim()) {
       const s = q.trim().toLowerCase();
-      out = out.filter(r => (r.attendee_name ?? '').toLowerCase().includes(s) || (r.buyer_name ?? '').toLowerCase().includes(s) || (r.email ?? '').toLowerCase().includes(s) || (r.whatsapp_number ?? '').toLowerCase().includes(s));
+      out = out.filter(r => (r.attendee_name ?? '').toLowerCase().includes(s) || (r.buyer_name ?? '').toLowerCase().includes(s) || (r.email ?? '').toLowerCase().includes(s) || (r.whatsapp_number ?? '').toLowerCase().includes(s) || (r.instagram_handle ?? '').toLowerCase().includes(s) || (r.email_domain ?? '').toLowerCase().includes(s));
     }
     if (status !== 'all') out = out.filter(r => r.ticket_status === status);
     return out;
   }, [rows, q, status]);
 
   const exportCsv = () => {
-    const headersMap: Record<string,string> = { attendee:'attendee_name', buyer:'buyer_name', email:'email', phone:'whatsapp_number', cab:'cab_requested', status:'ticket_status', scan:'scanned_at' };
+    const headersMap: Record<string,string> = {
+      attendee:'attendee_name',
+      buyer:'buyer_name',
+      email:'email',
+      phone:'whatsapp_number',
+      instagram:'instagram_handle',
+      ig_status:'instagram_verification_status',
+      ig_action:'instagram_review_action',
+      email_domain:'email_domain',
+      email_status:'email_domain_status',
+      cab:'cab_requested',
+      status:'ticket_status',
+      scan:'scanned_at',
+    };
     const headers = visibleCols.map((id) => headersMap[id] ?? id);
     const lines = [headers.join(',')];
     for (const r of filtered) {
@@ -86,6 +132,11 @@ export default function AttendeesPage() {
           case 'buyer': return r.buyer_name ?? '';
           case 'email': return r.email ?? '';
           case 'phone': return r.whatsapp_number ?? '';
+          case 'instagram': return r.instagram_handle ?? '';
+          case 'ig_status': return r.instagram_verification_status ?? 'not_required';
+          case 'ig_action': return '';
+          case 'email_domain': return r.email_domain ?? '';
+          case 'email_status': return r.email_domain_status ?? 'not_required';
           case 'cab': return r.cab_requested ? 'Yes' : 'No';
           case 'status': return r.ticket_status;
           case 'scan': return r.scanned_at ?? '';
@@ -105,9 +156,41 @@ export default function AttendeesPage() {
     { id: 'buyer', header: 'Buyer', sortable: true, accessor: (r) => r.buyer_name ?? '-' },
     { id: 'email', header: 'Email', sortable: true, accessor: (r) => r.email ?? '-' },
     { id: 'phone', header: 'WhatsApp', sortable: true, accessor: (r) => r.whatsapp_number ?? '-' },
+    { id: 'instagram', header: 'Instagram', sortable: true, accessor: (r) => r.instagram_handle ?? '-' },
+    { id: 'ig_status', header: 'IG Status', sortable: true, accessor: (r) => r.instagram_verification_status ?? 'not_required' },
+    { id: 'email_domain', header: 'Email Domain', sortable: true, accessor: (r) => r.email_domain ?? '-' },
+    { id: 'email_status', header: 'Email Gate', sortable: true, accessor: (r) => r.email_domain_status ?? 'not_required' },
     { id: 'cab', header: 'Cab', sortable: true, accessor: (r) => (r.cab_requested ? 'Yes' : 'No') },
     { id: 'status', header: 'Ticket', sortable: true, accessor: (r) => r.ticket_status },
     { id: 'scan', header: 'Scanned', sortable: true, accessor: (r) => (r.scanned_at ? new Date(r.scanned_at).toLocaleString() : '-') },
+    {
+      id: 'ig_action',
+      header: 'IG Review',
+      accessor: (r) => {
+        if (!eventGate?.require_instagram_verification) return '-';
+        const disabled = updatingOrderId === r.order_id;
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="hh-btn-secondary text-xs"
+              disabled={disabled || r.instagram_verification_status === 'approved'}
+              onClick={() => updateInstagramStatus(r.order_id, 'approved')}
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              className="hh-btn-secondary text-xs"
+              disabled={disabled || r.instagram_verification_status === 'rejected'}
+              onClick={() => updateInstagramStatus(r.order_id, 'rejected')}
+            >
+              Reject
+            </button>
+          </div>
+        );
+      },
+    },
   ];
 
   const columns = useMemo(() => allColumns.filter(c => visibleCols.includes(c.id)), [allColumns, visibleCols]);
@@ -152,6 +235,20 @@ export default function AttendeesPage() {
         </div>
       </div>
 
+      {eventGate && (eventGate.require_instagram_verification || eventGate.require_email_domain_verification) && (
+        <div className="hh-card p-3 mb-4 text-sm text-(--hh-text-secondary)">
+          {eventGate.require_instagram_verification && (
+            <div>Instagram gate: enabled (tickets require Instagram approval before scan)</div>
+          )}
+          {eventGate.require_email_domain_verification && (
+            <div>
+              Email-domain gate: enabled
+              {eventGate.allowed_email_domains?.length ? ` (${eventGate.allowed_email_domains.join(', ')})` : ''}
+            </div>
+          )}
+        </div>
+      )}
+
       {loading && <p className="text-(--hh-text-secondary)">Loading…</p>}
       {error && <p className="text-red-400">{error}</p>}
       {!loading && !error && (
@@ -168,9 +265,33 @@ export default function AttendeesPage() {
               <div className="text-(--hh-text-secondary) text-sm">Buyer: {r.buyer_name ?? '-'}</div>
               <div className="text-(--hh-text-secondary) text-sm">Email: {r.email ?? '-'}</div>
               <div className="text-(--hh-text-secondary) text-sm">WhatsApp: {r.whatsapp_number ?? '-'}</div>
+              <div className="text-(--hh-text-secondary) text-sm">Instagram: {r.instagram_handle ?? '-'}</div>
+              <div className="text-(--hh-text-secondary) text-sm">IG Status: {r.instagram_verification_status ?? 'not_required'}</div>
+              <div className="text-(--hh-text-secondary) text-sm">Email Domain: {r.email_domain ?? '-'}</div>
+              <div className="text-(--hh-text-secondary) text-sm">Email Gate: {r.email_domain_status ?? 'not_required'}</div>
               <div className="text-(--hh-text-secondary) text-sm">Cab: {r.cab_requested ? 'Yes' : 'No'}</div>
               <div className="text-(--hh-text-secondary) text-sm">Ticket: {r.ticket_status}</div>
               <div className="text-(--hh-text-secondary) text-sm">Scanned: {r.scanned_at ? new Date(r.scanned_at).toLocaleString() : '-'}</div>
+              {eventGate?.require_instagram_verification && (
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="hh-btn-secondary text-xs"
+                    disabled={updatingOrderId === r.order_id || r.instagram_verification_status === 'approved'}
+                    onClick={() => updateInstagramStatus(r.order_id, 'approved')}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    className="hh-btn-secondary text-xs"
+                    disabled={updatingOrderId === r.order_id || r.instagram_verification_status === 'rejected'}
+                    onClick={() => updateInstagramStatus(r.order_id, 'rejected')}
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

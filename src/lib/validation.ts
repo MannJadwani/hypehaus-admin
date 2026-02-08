@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+const normalizeDomain = (value: string) => value.trim().toLowerCase().replace(/^@/, '');
+const DOMAIN_REGEX = /^[a-z0-9.-]+\.[a-z]{2,}$/;
+
 export const LoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
@@ -28,6 +31,16 @@ export const EventBaseSchema = z.object({
   currency: z.string().length(3).optional(),
   status: z.enum(['draft', 'published', 'archived']).optional(),
   allow_cab: z.boolean().optional(),
+  require_instagram_verification: z.boolean().optional(),
+  require_email_domain_verification: z.boolean().optional(),
+  allowed_email_domains: z
+    .array(
+      z
+        .string()
+        .transform(normalizeDomain)
+        .refine((value) => DOMAIN_REGEX.test(value), 'Enter a valid domain (example: college.edu)')
+    )
+    .optional(),
 });
 
 export const EventCreateSchema = EventBaseSchema.extend({

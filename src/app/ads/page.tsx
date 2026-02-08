@@ -33,6 +33,13 @@ type Ad = {
   updated_at: string;
 };
 
+type VisibilitySnapshot = {
+  label: string;
+  badgeClassName: string;
+  detail: string;
+  note?: string;
+};
+
 const toDatetimeLocal = (iso?: string | null) => {
   if (!iso) return '';
   const d = new Date(iso);
@@ -50,6 +57,97 @@ const fromDatetimeLocalToIso = (v?: string) => {
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return undefined;
   return d.toISOString();
+};
+
+const parseDateMaybe = (value?: string | Date | null): Date | null => {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const formatDateTime = (value?: string | Date | null) => {
+  const d = parseDateMaybe(value);
+  if (!d) return '—';
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
+
+const computeVisibilitySnapshot = ({
+  status,
+  startAt,
+  endAt,
+  assumeNowIfMissingStart = false,
+}: {
+  status?: Ad['status'] | string | null;
+  startAt?: string | Date | null;
+  endAt?: string | Date | null;
+  assumeNowIfMissingStart?: boolean;
+}): VisibilitySnapshot => {
+  const normalizedStatus = status ?? 'pending';
+  const now = new Date();
+  const start = parseDateMaybe(startAt) ?? (assumeNowIfMissingStart ? now : null);
+  const end = parseDateMaybe(endAt);
+  const isInstantWindow = !!start && !!end && start.getTime() === end.getTime();
+
+  if (start && end && end.getTime() < start.getTime()) {
+    return {
+      label: 'Invalid window',
+      badgeClassName: 'bg-red-500/10 text-red-400 border-red-500/20',
+      detail: 'End time is before start time.',
+    };
+  }
+
+  if (normalizedStatus !== 'approved') {
+    if (normalizedStatus === 'pending') {
+      return {
+        label: 'Pending approval',
+        badgeClassName: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+        detail: 'Will not show until approved.',
+      };
+    }
+    if (normalizedStatus === 'paused') {
+      return {
+        label: 'Paused',
+        badgeClassName: 'bg-[var(--hh-bg-elevated)] text-[var(--hh-text-tertiary)] border-[var(--hh-border)]',
+        detail: 'Not visible while paused.',
+      };
+    }
+    return {
+      label: 'Rejected',
+      badgeClassName: 'bg-red-500/10 text-red-400 border-red-500/20',
+      detail: 'Not visible because status is rejected.',
+    };
+  }
+
+  if (start && now < start) {
+    return {
+      label: 'Scheduled',
+      badgeClassName: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
+      detail: `Starts ${formatDateTime(start)}`,
+      note: isInstantWindow ? 'Start and end are identical, so this will be visible only at one instant.' : undefined,
+    };
+  }
+
+  if (end && now > end) {
+    return {
+      label: 'Expired',
+      badgeClassName: 'bg-[var(--hh-bg-elevated)] text-[var(--hh-text-tertiary)] border-[var(--hh-border)]',
+      detail: `Ended ${formatDateTime(end)}`,
+      note: isInstantWindow ? 'Start and end were identical, so the ad window was effectively instant.' : undefined,
+    };
+  }
+
+  return {
+    label: 'Live',
+    badgeClassName: 'bg-green-500/10 text-green-400 border-green-500/20',
+    detail: end ? `Ends ${formatDateTime(end)}` : 'No end date set.',
+    note: isInstantWindow ? 'Start and end are identical, so this is visible only at one instant.' : undefined,
+  };
 };
 
 export default function AdsPage() {
@@ -160,8 +258,14 @@ export default function AdsPage() {
 
   const createEventId = createForm.watch('event_id');
   const createTargetUrl = createForm.watch('target_url');
+  const createStatus = createForm.watch('status');
+  const createStartAt = createForm.watch('start_at');
+  const createEndAt = createForm.watch('end_at');
   const editEventId = updateForm.watch('event_id');
   const editTargetUrl = updateForm.watch('target_url');
+  const editStatus = updateForm.watch('status');
+  const editStartAt = updateForm.watch('start_at');
+  const editEndAt = updateForm.watch('end_at');
 
   const filtered = useMemo(() => {
     let rows = ads.slice();
@@ -178,6 +282,27 @@ export default function AdsPage() {
     for (const v of vendors) map.set(v.id, v.email);
     return map;
   }, [vendors]);
+
+  const createVisibility = useMemo(
+    () =>
+      computeVisibilitySnapshot({
+        status: currentUser?.role === 'admin' ? createStatus ?? 'pending' : 'pending',
+        startAt: (createStartAt as string | Date | undefined) ?? null,
+        endAt: (createEndAt as string | Date | undefined) ?? null,
+        assumeNowIfMissingStart: true,
+      }),
+    [createStatus, createStartAt, createEndAt, currentUser?.role]
+  );
+
+  const editVisibility = useMemo(
+    () =>
+      computeVisibilitySnapshot({
+        status: editStatus ?? editingAd?.status ?? 'pending',
+        startAt: (editStartAt as string | Date | undefined) ?? editingAd?.start_at ?? null,
+        endAt: (editEndAt as string | Date | undefined) ?? editingAd?.end_at ?? null,
+      }),
+    [editStatus, editStartAt, editEndAt, editingAd]
+  );
 
   const uploadImage = async (file: File) => {
     const form = new FormData();
@@ -218,7 +343,7 @@ export default function AdsPage() {
   useEffect(() => {
     if (!editingAd) return;
     setEditEventSearch('');
-  }, [editingAd?.id]);
+  }, [editingAd]);
 
   useEffect(() => {
     if (!editingAd) return;
@@ -228,7 +353,7 @@ export default function AdsPage() {
       loadEventOptions(q);
     }, delayMs);
     return () => window.clearTimeout(handle);
-  }, [editEventSearch, editingAd?.id]);
+  }, [editEventSearch, editingAd]);
 
   const onCreate = async (values: AdCreateInput) => {
     const payload: Record<string, unknown> = { ...values };
@@ -427,7 +552,7 @@ export default function AdsPage() {
                   <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">Vendor</th>
                 )}
                 <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">Schedule</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">Visibility</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-[var(--hh-text-tertiary)] uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -439,7 +564,13 @@ export default function AdsPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((ad) => (
+                filtered.map((ad) => {
+                  const visibility = computeVisibilitySnapshot({
+                    status: ad.status,
+                    startAt: ad.start_at,
+                    endAt: ad.end_at,
+                  });
+                  return (
                   <tr key={ad.id} className="hover:bg-[var(--hh-bg-elevated)]/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -476,9 +607,20 @@ export default function AdsPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-[var(--hh-text-secondary)]">
-                      <div className="flex flex-col">
-                        <span>{new Date(ad.start_at).toLocaleDateString()}</span>
-                        <span className="text-xs text-[var(--hh-text-tertiary)]">{ad.end_at ? `Ends ${new Date(ad.end_at).toLocaleDateString()}` : 'No end date'}</span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`inline-flex w-fit items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${visibility.badgeClassName}`}>
+                          {visibility.label}
+                        </span>
+                        <span className="text-xs text-[var(--hh-text-secondary)]">{visibility.detail}</span>
+                        {visibility.note && (
+                          <span className="text-xs text-yellow-300/80">{visibility.note}</span>
+                        )}
+                        <span className="text-xs text-[var(--hh-text-tertiary)]">
+                          Start {formatDateTime(ad.start_at)}
+                        </span>
+                        <span className="text-xs text-[var(--hh-text-tertiary)]">
+                          {ad.end_at ? `End ${formatDateTime(ad.end_at)}` : 'End not set'}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -534,7 +676,8 @@ export default function AdsPage() {
                       </div>
                     </td>
                   </tr>
-                ))
+                );
+              })
               )}
             </tbody>
           </table>
@@ -696,6 +839,13 @@ export default function AdsPage() {
                       <input type="number" className="hh-input w-full min-w-0" {...createForm.register('priority', { valueAsNumber: true })} />
                     </div>
                   </div>
+
+                  <div className={`rounded-xl border px-3 py-2 text-xs ${createVisibility.badgeClassName}`}>
+                    <div className="font-semibold">Visibility: {createVisibility.label}</div>
+                    <div className="mt-1">{createVisibility.detail}</div>
+                    {createVisibility.note && <div className="mt-1">{createVisibility.note}</div>}
+                    <div className="mt-1 opacity-80">Times are interpreted in your local timezone and stored in UTC.</div>
+                  </div>
                 </div>
 
                 <div
@@ -847,6 +997,13 @@ export default function AdsPage() {
                       <label className="block text-xs font-medium text-[var(--hh-text-tertiary)] mb-1">Priority</label>
                       <input type="number" className="hh-input w-full min-w-0" {...updateForm.register('priority', { valueAsNumber: true })} />
                     </div>
+                  </div>
+
+                  <div className={`rounded-xl border px-3 py-2 text-xs ${editVisibility.badgeClassName}`}>
+                    <div className="font-semibold">Visibility: {editVisibility.label}</div>
+                    <div className="mt-1">{editVisibility.detail}</div>
+                    {editVisibility.note && <div className="mt-1">{editVisibility.note}</div>}
+                    <div className="mt-1 opacity-80">Times are interpreted in your local timezone and stored in UTC.</div>
                   </div>
                 </div>
 

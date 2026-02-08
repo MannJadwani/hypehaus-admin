@@ -153,6 +153,49 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const { data: gateConfig, error: gateError } = await supabaseAdmin
+      .from('events')
+      .select('require_instagram_verification, require_email_domain_verification')
+      .eq('id', ticket.event_id)
+      .single();
+
+    if (gateError || !gateConfig) {
+      return NextResponse.json(
+        { error: 'Event not found', message: 'Unable to load event gate configuration' },
+        { status: 404 }
+      );
+    }
+
+    if (gateConfig.require_instagram_verification && order.instagram_verification_status !== 'approved') {
+      const fullData = await fetchFullTicketData(ticket.id);
+      return NextResponse.json(
+        {
+          error: 'Instagram verification required',
+          message: 'This order has not been approved for Instagram verification yet',
+          ticket: fullData.ticket,
+          order: fullData.order,
+          event: fullData.event,
+          allTickets: fullData.allTickets,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (gateConfig.require_email_domain_verification && order.email_domain_status !== 'approved') {
+      const fullData = await fetchFullTicketData(ticket.id);
+      return NextResponse.json(
+        {
+          error: 'Email domain verification failed',
+          message: 'This order email is not approved for this event',
+          ticket: fullData.ticket,
+          order: fullData.order,
+          event: fullData.event,
+          allTickets: fullData.allTickets,
+        },
+        { status: 400 }
+      );
+    }
+
     // Update ticket status to 'used' if currently 'active'
     if (ticket.status === 'active') {
       const { error: updateError } = await supabaseAdmin
@@ -293,6 +336,11 @@ async function fetchFullTicketData(ticketId: string) {
       created_at: order.created_at,
       razorpay_order_id: order.razorpay_order_id,
       razorpay_payment_id: order.razorpay_payment_id,
+      requested_cab: order.requested_cab ?? false,
+      instagram_handle: order.instagram_handle ?? null,
+      instagram_verification_status: order.instagram_verification_status ?? 'not_required',
+      email_domain: order.email_domain ?? null,
+      email_domain_status: order.email_domain_status ?? 'not_required',
     },
     event: {
       id: event.id,
