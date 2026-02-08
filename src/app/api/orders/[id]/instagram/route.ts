@@ -38,15 +38,27 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const shouldStamp = status === 'approved' || status === 'rejected';
+    const now = new Date().toISOString();
+    
+    // Build update payload
+    const updatePayload: Record<string, unknown> = {
+      instagram_verification_status: status,
+      instagram_verified_at: shouldStamp ? now : null,
+      instagram_verified_by: shouldStamp ? admin.id : null,
+    };
+
+    // If rejecting, flag for refund
+    if (status === 'rejected') {
+      updatePayload.refund_requested = true;
+      updatePayload.refund_reason = 'Instagram verification rejected';
+      updatePayload.refund_requested_at = now;
+    }
+
     const { data: updated, error: updateError } = await supabaseAdmin
       .from('orders')
-      .update({
-        instagram_verification_status: status,
-        instagram_verified_at: shouldStamp ? new Date().toISOString() : null,
-        instagram_verified_by: shouldStamp ? admin.id : null,
-      })
+      .update(updatePayload)
       .eq('id', id)
-      .select('id, instagram_verification_status, instagram_verified_at, instagram_verified_by')
+      .select('id, instagram_verification_status, instagram_verified_at, instagram_verified_by, refund_requested')
       .single();
 
     if (updateError || !updated) {

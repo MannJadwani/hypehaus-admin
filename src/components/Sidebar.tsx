@@ -144,6 +144,23 @@ export default function Sidebar() {
     </svg>
   );
 
+  const IconInstagram = (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+    </svg>
+  );
+
+  const IconRefund = (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l4-4-4-4" />
+      <path d="M7 5H21" />
+      <path d="M21 15l-4 4 4 4" />
+      <path d="M17 19H3" />
+    </svg>
+  );
+
   const NavContent = () => (
     <nav className="flex-1 px-3 py-4 space-y-1">
       <NavLink href="/" label="Dashboard" icon={IconHome} />
@@ -157,6 +174,12 @@ export default function Sidebar() {
       <NavLink href="/scan" label="Scan Tickets" icon={IconQr} />
       {currentUser?.role === 'admin' && (
         <NavLink href="/admin-users" label="Admin Users" icon={IconUsers} />
+      )}
+      {currentUser?.role === 'admin' && (
+        <NavLink href="/instagram-reviews" label="Instagram Reviews" icon={IconInstagram} />
+      )}
+      {currentUser?.role === 'admin' && (
+        <NavLink href="/refunds" label="Refunds" icon={IconRefund} />
       )}
     </nav>
   );
