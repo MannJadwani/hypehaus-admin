@@ -3,9 +3,19 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { EventUpdateSchema } from '@/lib/validation';
 import { getEventAccess, requireAuth, requireEventDelete, requireEventEdit } from '@/lib/admin-auth';
 import { NextRequest } from 'next/server';
-import React from 'react';
 
 type Params = { params: Promise<{ id: string }> };
+
+const normalizeAllowedDomains = (domains: unknown): string[] => {
+  if (!Array.isArray(domains)) return [];
+  return Array.from(
+    new Set(
+      domains
+        .map((domain) => String(domain).trim().toLowerCase().replace(/^@/, ''))
+        .filter(Boolean)
+    )
+  );
+};
 
 export async function GET(req: NextRequest, { params }: Params) {
   let admin;
@@ -48,6 +58,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!eventAccess) {
       return NextResponse.json({ error: 'Unauthorized: Event access denied' }, { status: 403 });
     }
+    const { data: currentEvent } = await supabaseAdmin
+      .from('events')
+      .select('require_email_domain_verification, allowed_email_domains')
+      .eq('id', id)
+      .single();
     const json = await req.json();
     const parsed = EventUpdateSchema.safeParse(json);
     if (!parsed.success) {
@@ -60,10 +75,36 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (admin.role !== 'admin') {
       delete payload.vendor_id;
       delete payload.allow_cab;
+      delete payload.require_instagram_verification;
+      delete payload.require_email_domain_verification;
+      delete payload.allowed_email_domains;
     } else if ('vendor_id' in payload) {
       const nextVendorId = payload.vendor_id ?? null;
       if (eventAccess.vendor_id && eventAccess.vendor_id !== nextVendorId) {
         return NextResponse.json({ error: 'Vendor reassignment is not allowed' }, { status: 400 });
+      }
+    }
+
+    if (admin.role === 'admin') {
+      if ('allowed_email_domains' in payload) {
+        payload.allowed_email_domains = normalizeAllowedDomains(payload.allowed_email_domains);
+      }
+      if ('require_email_domain_verification' in payload && !payload.require_email_domain_verification) {
+        payload.allowed_email_domains = [];
+      }
+      const resolvedRequireEmailDomain =
+        'require_email_domain_verification' in payload
+          ? Boolean(payload.require_email_domain_verification)
+          : Boolean(currentEvent?.require_email_domain_verification);
+      const resolvedAllowedDomains =
+        'allowed_email_domains' in payload
+          ? ((payload.allowed_email_domains as string[]) ?? [])
+          : ((currentEvent?.allowed_email_domains as string[] | null) ?? []);
+      if (resolvedRequireEmailDomain && resolvedAllowedDomains.length === 0) {
+        return NextResponse.json(
+          { error: 'Add at least one allowed email domain when email-domain gate is enabled' },
+          { status: 400 }
+        );
       }
     }
 

@@ -4,6 +4,17 @@ import { EventCreateSchema } from '@/lib/validation';
 import { getVendorScopeId, requireEventCreate, requireAuth } from '@/lib/admin-auth';
 import { NextRequest } from 'next/server';
 
+const normalizeAllowedDomains = (domains: unknown): string[] => {
+  if (!Array.isArray(domains)) return [];
+  return Array.from(
+    new Set(
+      domains
+        .map((domain) => String(domain).trim().toLowerCase().replace(/^@/, ''))
+        .filter(Boolean)
+    )
+  );
+};
+
 export async function GET(req: NextRequest) {
   let admin;
   try {
@@ -74,6 +85,19 @@ export async function POST(req: NextRequest) {
 
     if (admin.role !== 'admin') {
       delete payload.allow_cab;
+      delete payload.require_instagram_verification;
+      delete payload.require_email_domain_verification;
+      delete payload.allowed_email_domains;
+    } else {
+      payload.allowed_email_domains = normalizeAllowedDomains(payload.allowed_email_domains);
+      if (!payload.require_email_domain_verification) {
+        payload.allowed_email_domains = [];
+      } else if ((payload.allowed_email_domains as string[]).length === 0) {
+        return NextResponse.json(
+          { error: 'Add at least one allowed email domain when email-domain gate is enabled' },
+          { status: 400 }
+        );
+      }
     }
 
     // Normalize date fields to ISO strings if Date objects were passed

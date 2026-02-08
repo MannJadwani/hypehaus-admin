@@ -9,6 +9,15 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 
 const categories = ['Music', 'Tech', 'Comedy', 'Art', 'Sports'] as const;
+const parseAllowedDomains = (value: string): string[] =>
+  Array.from(
+    new Set(
+      value
+        .split(/[\n,]/)
+        .map((domain) => domain.trim().toLowerCase().replace(/^@/, ''))
+        .filter(Boolean)
+    )
+  );
 
 const steps = [
   { id: 'basic', title: 'Basic Details', icon: (
@@ -41,6 +50,7 @@ export default function NewEventPage() {
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isValidatingStep, setIsValidatingStep] = useState(false);
+  const [allowedEmailDomainsInput, setAllowedEmailDomainsInput] = useState('');
 
   useEffect(() => {
     // Load current user role
@@ -82,6 +92,9 @@ export default function NewEventPage() {
       currency: 'INR',
       status: 'draft',
       allow_cab: false,
+      require_instagram_verification: false,
+      require_email_domain_verification: false,
+      allowed_email_domains: [],
     },
   });
 
@@ -114,6 +127,7 @@ export default function NewEventPage() {
         ...values,
         start_at: values.start_at ? new Date(values.start_at).toISOString() : undefined,
         end_at: values.end_at ? new Date(values.end_at).toISOString() : undefined,
+        allowed_email_domains: parseAllowedDomains(allowedEmailDomainsInput),
       };
 
       const res = await fetch('/api/events', {
@@ -504,6 +518,55 @@ export default function NewEventPage() {
                   <p className="text-[var(--hh-text-secondary)] mt-0.5">Allow customers to request a cab ride when booking their tickets.</p>
                   {currentUser?.role !== 'admin' && (
                     <p className="text-[var(--hh-text-tertiary)] mt-1">Only admins can enable cab options.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-[var(--hh-bg-elevated)]/30 border border-[var(--hh-border)] flex items-start gap-3">
+                <div className="flex h-6 items-center">
+                  <input
+                    id="require_instagram_verification"
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-[var(--hh-border)] text-[var(--hh-primary)] focus:ring-[var(--hh-primary)] bg-[var(--hh-bg-input)]"
+                    {...register('require_instagram_verification')}
+                    disabled={currentUser?.role !== 'admin'}
+                  />
+                </div>
+                <div className="text-sm">
+                  <label htmlFor="require_instagram_verification" className="font-medium text-[var(--hh-text)]">Instagram Verification Gate</label>
+                  <p className="text-[var(--hh-text-secondary)] mt-0.5">Require buyers to submit an Instagram handle for manual approval before entry.</p>
+                  {currentUser?.role !== 'admin' && (
+                    <p className="text-[var(--hh-text-tertiary)] mt-1">Only admins can enable Instagram verification.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-[var(--hh-bg-elevated)]/30 border border-[var(--hh-border)] flex items-start gap-3">
+                <div className="flex h-6 items-center">
+                  <input
+                    id="require_email_domain_verification"
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-[var(--hh-border)] text-[var(--hh-primary)] focus:ring-[var(--hh-primary)] bg-[var(--hh-bg-input)]"
+                    {...register('require_email_domain_verification')}
+                    disabled={currentUser?.role !== 'admin'}
+                  />
+                </div>
+                <div className="text-sm flex-1">
+                  <label htmlFor="require_email_domain_verification" className="font-medium text-[var(--hh-text)]">School/College Email Domain Gate</label>
+                  <p className="text-[var(--hh-text-secondary)] mt-0.5">Allow checkout only for emails from approved domains (example: `college.edu`).</p>
+                  <textarea
+                    className="hh-input w-full min-h-[96px] mt-3"
+                    placeholder="Add one domain per line, or comma-separated&#10;example.edu&#10;campus.ac.in"
+                    value={allowedEmailDomainsInput}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setAllowedEmailDomainsInput(nextValue);
+                      setValue('allowed_email_domains', parseAllowedDomains(nextValue), { shouldDirty: true, shouldValidate: true });
+                    }}
+                    disabled={currentUser?.role !== 'admin'}
+                  />
+                  {currentUser?.role !== 'admin' && (
+                    <p className="text-[var(--hh-text-tertiary)] mt-1">Only admins can configure allowed email domains.</p>
                   )}
                 </div>
               </div>

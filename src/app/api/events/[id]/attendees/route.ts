@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       status,
       scanned_at,
       order_id,
-      orders:orders(id, user_id, email, whatsapp_number, status, created_at, requested_cab)
+      orders:orders(id, user_id, email, whatsapp_number, status, created_at, requested_cab, instagram_handle, instagram_verification_status, email_domain, email_domain_status)
     `)
     .eq('event_id', id);
 
@@ -62,9 +62,22 @@ export async function GET(req: NextRequest, { params }: Params) {
       email: row.orders?.email ?? prof?.email ?? null,
       whatsapp_number: row.orders?.whatsapp_number ?? null,
       cab_requested: !!row.orders?.requested_cab,
+      instagram_handle: row.orders?.instagram_handle ?? null,
+      instagram_verification_status: row.orders?.instagram_verification_status ?? 'not_required',
+      email_domain: row.orders?.email_domain ?? null,
+      email_domain_status: row.orders?.email_domain_status ?? 'not_required',
       created_at: row.orders?.created_at ?? null,
     };
   });
 
-  return NextResponse.json({ attendees: rows });
+  const { data: eventGate } = await supabaseAdmin
+    .from('events')
+    .select('id, require_instagram_verification, require_email_domain_verification, allowed_email_domains')
+    .eq('id', id)
+    .single();
+
+  return NextResponse.json({
+    attendees: rows,
+    event: eventGate ?? null,
+  });
 }
