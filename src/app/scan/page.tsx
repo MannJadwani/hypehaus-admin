@@ -61,6 +61,7 @@ export default function ScanPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [manualEntry, setManualEntry] = useState(false);
   const [manualQrData, setManualQrData] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
   
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -251,8 +252,41 @@ export default function ScanPage() {
     setError(null);
     setManualEntry(false);
     setManualQrData('');
-    // Optionally restart scanning immediately
-    // startScanning();
+    setIsRejecting(false);
+  };
+
+  const handleRejectTicket = async () => {
+    if (!result?.ticket?.id) return;
+
+    try {
+      setIsRejecting(true);
+
+      const response = await fetch('/api/tickets/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketId: result.ticket.id }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || data.error || 'Failed to reject ticket');
+        return;
+      }
+
+      setResult({
+        success: false,
+        message: 'Ticket rejected and removed from inventory',
+        ticket: result.ticket,
+        order: result.order,
+        event: result.event,
+        allTickets: result.allTickets,
+      });
+    } catch (err: any) {
+      setError(err.message || 'Network error. Please check your connection.');
+    } finally {
+      setIsRejecting(false);
+    }
   };
 
   useEffect(() => {
@@ -404,17 +438,28 @@ export default function ScanPage() {
                         </svg>
                     )}
                 </div>
-                <div className="flex-1">
-                    <h2 className="text-2xl font-bold mb-1">{result.success ? 'Ticket Valid' : 'Invalid Ticket'}</h2>
-                    <p className={`opacity-90 ${result.success ? 'text-green-300' : 'text-red-300'}`}>{result.message}</p>
-                </div>
-                <button onClick={resetScan} className={`px-6 py-3 rounded-xl font-semibold transition-transform active:scale-95 ${
-                     result.success 
-                     ? 'bg-green-500 text-green-950 hover:bg-green-400' 
-                     : 'bg-red-500 text-white hover:bg-red-400'
-                }`}>
-                    Scan Next
-                </button>
+                 <div className="flex-1">
+                     <h2 className="text-2xl font-bold mb-1">{result.success ? 'Ticket Valid' : 'Invalid Ticket'}</h2>
+                     <p className={`opacity-90 ${result.success ? 'text-green-300' : 'text-red-300'}`}>{result.message}</p>
+                 </div>
+                 <div className="flex gap-3">
+                     {result.success && result.ticket?.status === 'active' && (
+                         <button
+                             onClick={handleRejectTicket}
+                             disabled={isRejecting}
+                             className="px-6 py-3 rounded-xl font-semibold transition-transform active:scale-95 bg-red-500 text-white hover:bg-red-400 disabled:opacity-50"
+                         >
+                             {isRejecting ? 'Rejecting...' : 'Reject Ticket'}
+                         </button>
+                     )}
+                     <button onClick={resetScan} className={`px-6 py-3 rounded-xl font-semibold transition-transform active:scale-95 ${
+                          result.success
+                          ? 'bg-green-500 text-green-950 hover:bg-green-400'
+                          : 'bg-red-500 text-white hover:bg-red-400'
+                     }`}>
+                         Scan Next
+                     </button>
+                 </div>
             </div>
 
             {result.ticket && result.event && (
