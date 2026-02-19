@@ -2,6 +2,13 @@ import { z } from 'zod';
 
 const normalizeDomain = (value: string) => value.trim().toLowerCase().replace(/^@/, '');
 const DOMAIN_REGEX = /^[a-z0-9.-]+\.[a-z]{2,}$/;
+const EventEntryGateSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(1).max(64),
+  code: z.string().optional(),
+  sort_order: z.number().int().nonnegative().optional(),
+  is_active: z.boolean().optional(),
+});
 
 export const LoginSchema = z.object({
   email: z.string().email(),
@@ -33,6 +40,8 @@ export const EventBaseSchema = z.object({
   allow_cab: z.boolean().optional(),
   require_instagram_verification: z.boolean().optional(),
   require_email_domain_verification: z.boolean().optional(),
+  enable_entry_gate_flow: z.boolean().optional(),
+  entry_gates: z.array(EventEntryGateSchema).optional(),
   allowed_email_domains: z
     .array(
       z
