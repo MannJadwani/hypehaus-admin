@@ -42,6 +42,20 @@ interface EventData {
   address_line?: string;
   city?: string;
   hero_image_url?: string;
+  enable_entry_gate_flow?: boolean;
+}
+
+interface ScannerEventOption {
+  id: string;
+  title: string;
+}
+
+interface EntryGate {
+  id: string;
+  name: string;
+  code?: string | null;
+  sort_order: number;
+  is_active: boolean;
 }
 
 interface ScanResult {
@@ -51,6 +65,19 @@ interface ScanResult {
   order?: OrderData;
   event?: EventData;
   allTickets?: TicketData[];
+  entryGateFlowEnabled?: boolean;
+  gateScanProgress?: {
+    completedCount: number;
+    totalCount: number;
+    completedGateIds: string[];
+  };
+  gateScans?: {
+    gateId: string;
+    gateName: string;
+    scannedAt: string;
+    scannedBy: string | null;
+  }[];
+  currentGateResult?: 'scanned' | 'already_scanned' | 'not_applicable';
   error?: string;
 }
 
@@ -62,6 +89,11 @@ export default function ScanPage() {
   const [manualEntry, setManualEntry] = useState(false);
   const [manualQrData, setManualQrData] = useState('');
   const [isRejecting, setIsRejecting] = useState(false);
+  const [events, setEvents] = useState<ScannerEventOption[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string>('');
+  const [gates, setGates] = useState<EntryGate[]>([]);
+  const [selectedGateId, setSelectedGateId] = useState<string>('');
+  const [loadingGates, setLoadingGates] = useState(false);
   
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -72,9 +104,73 @@ export default function ScanPage() {
   const rafIdRef = useRef<number | null>(null);
   const scanBusyRef = useRef(false);
   const lastScanRef = useRef(0);
+  const canStartScanning = Boolean(selectedEventId && selectedGateId);
+
+  const loadScannerEvents = async () => {
+    const response = await fetch('/api/events', { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error('Failed to load events');
+    }
+    const payload = await response.json();
+    const options: ScannerEventOption[] = (payload.events ?? []).map((event: any) => ({
+      id: event.id,
+      title: event.title,
+    }));
+    setEvents(options);
+
+    if (!selectedEventId && options.length > 0) {
+      setSelectedEventId(options[0].id);
+    }
+  };
+
+  const loadEventGates = async (eventId: string) => {
+    if (!eventId) {
+      setGates([]);
+      setSelectedGateId('');
+      return;
+    }
+
+    setLoadingGates(true);
+    try {
+      const response = await fetch(`/api/events/${eventId}`, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error('Failed to load event gates');
+      }
+      const payload = await response.json();
+      const event = payload.event as EventData | undefined;
+      const allGates: EntryGate[] = ((payload.entry_gates ?? []) as EntryGate[])
+        .filter((gate) => gate.is_active)
+        .sort((a, b) => a.sort_order - b.sort_order);
+
+      if (event?.enable_entry_gate_flow) {
+        setGates(allGates);
+        if (allGates.length === 0) {
+          setSelectedGateId('');
+          setError('Entry gate flow is enabled but no active gates are configured for this event.');
+          return;
+        }
+        setSelectedGateId((current) =>
+          allGates.some((gate) => gate.id === current) ? current : allGates[0].id,
+        );
+      } else {
+        setGates([{ id: '__default_gate__', name: 'General Entry', sort_order: 0, is_active: true }]);
+        setSelectedGateId('__default_gate__');
+      }
+    } catch (gateError: any) {
+      setError(gateError?.message ?? 'Failed to load gate configuration.');
+      setGates([]);
+      setSelectedGateId('');
+    } finally {
+      setLoadingGates(false);
+    }
+  };
 
   const startScanning = async () => {
     try {
+      if (!canStartScanning) {
+        setError('Select event and gate to start scanning.');
+        return;
+      }
       setError(null);
       setCameraError(null);
       setResult(null);
@@ -207,7 +303,11 @@ export default function ScanPage() {
       const response = await fetch('/api/tickets/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qrData }),
+        body: JSON.stringify({
+          qrData,
+          eventId: selectedEventId,
+          gateId: selectedGateId === '__default_gate__' ? undefined : selectedGateId,
+        }),
       });
 
       const data = await response.json();
@@ -239,6 +339,10 @@ export default function ScanPage() {
   };
 
   const handleManualSubmit = () => {
+    if (!canStartScanning) {
+      setError('Select event and gate to start scanning.');
+      return;
+    }
     if (!manualQrData.trim()) {
       setError('Please enter QR code data');
       return;
@@ -290,6 +394,18 @@ export default function ScanPage() {
   };
 
   useEffect(() => {
+    loadScannerEvents().catch((loadError: any) => {
+      setError(loadError?.message ?? 'Failed to load events for scanner.');
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    loadEventGates(selectedEventId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEventId]);
+
+  useEffect(() => {
     return () => cleanupCamera();
   }, []);
 
@@ -315,6 +431,52 @@ export default function ScanPage() {
         </Link>
       </div>
 
+      <div className="hh-card p-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-[var(--hh-text-secondary)] mb-1">Event</label>
+            <select
+              className="hh-input w-full"
+              value={selectedEventId}
+              onChange={(event) => setSelectedEventId(event.target.value)}
+            >
+              <option value="">Select event</option>
+              {events.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {event.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[var(--hh-text-secondary)] mb-1">Gate</label>
+            <select
+              className="hh-input w-full"
+              value={selectedGateId}
+              onChange={(event) => setSelectedGateId(event.target.value)}
+              disabled={!selectedEventId || loadingGates || gates.length === 0}
+            >
+              <option value="">{loadingGates ? 'Loading gates...' : 'Select gate'}</option>
+              {gates.map((gate) => (
+                <option key={gate.id} value={gate.id}>
+                  {gate.name}{gate.code ? ` (${gate.code})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end">
+            <div className="rounded-xl border border-[var(--hh-border)] bg-[var(--hh-bg-elevated)] px-3 py-2 text-sm w-full">
+              <div className="text-[var(--hh-text-secondary)] text-xs">Scanner context</div>
+              <div className="text-[var(--hh-text)] font-semibold">
+                {selectedEventId && selectedGateId
+                  ? `${events.find((event) => event.id === selectedEventId)?.title ?? 'Event'} • ${gates.find((gate) => gate.id === selectedGateId)?.name ?? 'Gate'}`
+                  : 'Select event and gate to start scanning'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main Action Area */}
       {!result && !manualEntry && !scanning && (
         <div className="hh-card p-8 md:p-12 flex flex-col items-center justify-center text-center space-y-6 min-h-[400px]">
@@ -330,14 +492,22 @@ export default function ScanPage() {
              </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-             <button onClick={startScanning} className="hh-btn-primary py-3 flex-1 flex items-center justify-center gap-2 text-base">
+             <button
+                onClick={startScanning}
+                disabled={!canStartScanning}
+                className="hh-btn-primary py-3 flex-1 flex items-center justify-center gap-2 text-base disabled:opacity-60 disabled:cursor-not-allowed"
+             >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 Open Camera
                 </button>
-             <button onClick={() => setManualEntry(true)} className="hh-btn-secondary py-3 flex-1 flex items-center justify-center gap-2 text-base">
+             <button
+                onClick={() => setManualEntry(true)}
+                disabled={!canStartScanning}
+                className="hh-btn-secondary py-3 flex-1 flex items-center justify-center gap-2 text-base disabled:opacity-60 disabled:cursor-not-allowed"
+             >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
@@ -366,6 +536,9 @@ export default function ScanPage() {
              
              {/* Overlay */}
              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center p-8">
+                <div className="absolute top-6 left-6 rounded-full bg-black/65 border border-white/20 px-4 py-2 text-xs text-white backdrop-blur-md">
+                  Event: {events.find((event) => event.id === selectedEventId)?.title ?? '—'} | Gate: {gates.find((gate) => gate.id === selectedGateId)?.name ?? '—'}
+                </div>
                 <div className="relative w-full max-w-xs aspect-square border-2 border-white/30 rounded-3xl overflow-hidden">
                     <div className="absolute inset-0 border-2 border-[var(--hh-primary)] rounded-3xl animate-pulse opacity-75"></div>
                     {/* Scanning line animation */}
@@ -377,6 +550,14 @@ export default function ScanPage() {
              </div>
 
              {/* Close Button */}
+             <button
+                onClick={async () => {
+                  await stopScanning();
+                }}
+                className="absolute top-6 right-24 px-4 py-2 bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black/70 transition-colors text-sm"
+             >
+                Switch Gate
+             </button>
              <button onClick={stopScanning} className="absolute top-6 right-6 p-3 bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black/70 transition-colors">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -461,6 +642,38 @@ export default function ScanPage() {
                      </button>
                  </div>
             </div>
+
+            {result.entryGateFlowEnabled && (
+              <div className="hh-card p-5">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+                  <h3 className="text-lg font-semibold text-[var(--hh-text)]">Entry Progress</h3>
+                  <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-[var(--hh-primary)]/20 text-[var(--hh-text)] border border-[var(--hh-primary)]/40">
+                    {result.gateScanProgress?.completedCount ?? 0} / {result.gateScanProgress?.totalCount ?? 0} gates
+                  </span>
+                </div>
+                <p className="text-sm text-[var(--hh-text-secondary)] mb-2">
+                  {result.currentGateResult === 'already_scanned'
+                    ? 'Already scanned at this gate.'
+                    : result.currentGateResult === 'scanned'
+                      ? 'Gate scanned successfully.'
+                      : 'Gate scan not applicable.'}
+                </p>
+                <div className="space-y-2">
+                  {(result.gateScans ?? []).length === 0 ? (
+                    <p className="text-sm text-[var(--hh-text-secondary)]">No gate scans recorded yet.</p>
+                  ) : (
+                    result.gateScans?.map((scan) => (
+                      <div key={`${scan.gateId}-${scan.scannedAt}`} className="rounded-xl border border-[var(--hh-border)] bg-[var(--hh-bg-elevated)] px-3 py-2 text-sm">
+                        <div className="font-medium text-[var(--hh-text)]">{scan.gateName}</div>
+                        <div className="text-[var(--hh-text-secondary)]">
+                          {formatDate(scan.scannedAt)}{scan.scannedBy ? ` • ${scan.scannedBy}` : ''}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
 
             {result.ticket && result.event && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

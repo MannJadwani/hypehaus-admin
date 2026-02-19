@@ -19,6 +19,13 @@ const parseAllowedDomains = (value: string): string[] =>
     )
   );
 
+type EntryGateInput = {
+  id: string;
+  name: string;
+  code: string;
+  is_active: boolean;
+};
+
 const steps = [
   { id: 'basic', title: 'Basic Details', icon: (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -51,6 +58,9 @@ export default function NewEventPage() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isValidatingStep, setIsValidatingStep] = useState(false);
   const [allowedEmailDomainsInput, setAllowedEmailDomainsInput] = useState('');
+  const [entryGates, setEntryGates] = useState<EntryGateInput[]>([
+    { id: `gate-${Date.now()}`, name: 'Gate 1', code: 'GATE1', is_active: true },
+  ]);
 
   useEffect(() => {
     // Load current user role
@@ -94,11 +104,13 @@ export default function NewEventPage() {
       allow_cab: false,
       require_instagram_verification: false,
       require_email_domain_verification: false,
+      enable_entry_gate_flow: false,
       allowed_email_domains: [],
     },
   });
 
   const heroUrl = watch('hero_image_url');
+  const enableEntryGateFlow = !!watch('enable_entry_gate_flow');
 
   const uploadHero = async (file: File) => {
     setIsUploadingImage(true);
@@ -128,6 +140,14 @@ export default function NewEventPage() {
         start_at: values.start_at ? new Date(values.start_at).toISOString() : undefined,
         end_at: values.end_at ? new Date(values.end_at).toISOString() : undefined,
         allowed_email_domains: parseAllowedDomains(allowedEmailDomainsInput),
+        entry_gates: enableEntryGateFlow
+          ? entryGates.map((gate, index) => ({
+              name: gate.name.trim(),
+              code: gate.code.trim(),
+              sort_order: index,
+              is_active: gate.is_active,
+            }))
+          : [],
       };
 
       const res = await fetch('/api/events', {
@@ -518,6 +538,112 @@ export default function NewEventPage() {
                   <p className="text-[var(--hh-text-secondary)] mt-0.5">Allow customers to request a cab ride when booking their tickets.</p>
                   {currentUser?.role !== 'admin' && (
                     <p className="text-[var(--hh-text-tertiary)] mt-1">Only admins can enable cab options.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-[var(--hh-bg-elevated)]/30 border border-[var(--hh-border)] flex items-start gap-3">
+                <div className="flex h-6 items-center">
+                  <input
+                    id="enable_entry_gate_flow"
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-[var(--hh-border)] text-[var(--hh-primary)] focus:ring-[var(--hh-primary)] bg-[var(--hh-bg-input)]"
+                    {...register('enable_entry_gate_flow')}
+                    disabled={currentUser?.role !== 'admin'}
+                  />
+                </div>
+                <div className="text-sm flex-1">
+                  <label htmlFor="enable_entry_gate_flow" className="font-medium text-[var(--hh-text)]">Enable Entry Gate Flow</label>
+                  <p className="text-[var(--hh-text-secondary)] mt-0.5">Ticket is marked used only after all active gates are scanned.</p>
+                  {enableEntryGateFlow && (
+                    <div className="mt-3 space-y-2">
+                      {entryGates.map((gate, index) => (
+                        <div key={gate.id} className="grid grid-cols-12 gap-2 items-center">
+                          <input
+                            value={gate.name}
+                            onChange={(event) =>
+                              setEntryGates((prev) =>
+                                prev.map((row) =>
+                                  row.id === gate.id ? { ...row, name: event.target.value } : row,
+                                ),
+                              )
+                            }
+                            className="hh-input col-span-5"
+                            placeholder={`Gate ${index + 1}`}
+                            disabled={currentUser?.role !== 'admin'}
+                          />
+                          <input
+                            value={gate.code}
+                            onChange={(event) =>
+                              setEntryGates((prev) =>
+                                prev.map((row) =>
+                                  row.id === gate.id
+                                    ? {
+                                        ...row,
+                                        code: event.target.value
+                                          .toUpperCase()
+                                          .replace(/[^A-Z0-9_-]/g, '')
+                                          .slice(0, 24),
+                                      }
+                                    : row,
+                                ),
+                              )
+                            }
+                            className="hh-input col-span-3"
+                            placeholder="CODE"
+                            disabled={currentUser?.role !== 'admin'}
+                          />
+                          <label className="col-span-2 flex items-center gap-2 text-xs text-[var(--hh-text-secondary)]">
+                            <input
+                              type="checkbox"
+                              checked={gate.is_active}
+                              onChange={(event) =>
+                                setEntryGates((prev) =>
+                                  prev.map((row) =>
+                                    row.id === gate.id ? { ...row, is_active: event.target.checked } : row,
+                                  ),
+                                )
+                              }
+                              disabled={currentUser?.role !== 'admin'}
+                            />
+                            Active
+                          </label>
+                          <button
+                            type="button"
+                            className="hh-btn-secondary col-span-2 text-xs"
+                            onClick={() =>
+                              setEntryGates((prev) =>
+                                prev.length <= 1 ? prev : prev.filter((row) => row.id !== gate.id),
+                              )
+                            }
+                            disabled={currentUser?.role !== 'admin' || entryGates.length <= 1}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="hh-btn-secondary text-xs"
+                        onClick={() =>
+                          setEntryGates((prev) => [
+                            ...prev,
+                            {
+                              id: `gate-${Date.now()}-${prev.length}`,
+                              name: `Gate ${prev.length + 1}`,
+                              code: `GATE${prev.length + 1}`,
+                              is_active: true,
+                            },
+                          ])
+                        }
+                        disabled={currentUser?.role !== 'admin'}
+                      >
+                        Add Gate
+                      </button>
+                    </div>
+                  )}
+                  {currentUser?.role !== 'admin' && (
+                    <p className="text-[var(--hh-text-tertiary)] mt-1">Only admins can configure gate flow.</p>
                   )}
                 </div>
               </div>

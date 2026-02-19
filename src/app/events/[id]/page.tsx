@@ -43,7 +43,16 @@ type EventDetail = {
   allow_cab: boolean;
   require_instagram_verification: boolean;
   require_email_domain_verification: boolean;
+  enable_entry_gate_flow: boolean;
   allowed_email_domains: string[] | null;
+};
+
+type EntryGate = {
+  id: string;
+  name: string;
+  code: string | null;
+  sort_order: number;
+  is_active: boolean;
 };
 
 const categories = ['Music', 'Tech', 'Comedy', 'Art', 'Sports'] as const;
@@ -67,12 +76,14 @@ export default function EditEventPage() {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [images, setImages] = useState<Image[]>([]);
+  const [entryGates, setEntryGates] = useState<EntryGate[]>([]);
   const [allowedEmailDomainsInput, setAllowedEmailDomainsInput] = useState('');
 
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<EventUpdateInput>({ resolver: zodResolver(EventUpdateSchema) });
 
@@ -99,6 +110,7 @@ export default function EditEventPage() {
     setEvent(data.event);
     setTiers(data.tiers);
     setImages(data.images);
+    setEntryGates((data.entry_gates ?? []) as EntryGate[]);
     
     const toLocalISO = (str: string) => {
       if (!str) return '';
@@ -124,6 +136,7 @@ export default function EditEventPage() {
       allow_cab: !!data.event.allow_cab,
       require_instagram_verification: !!data.event.require_instagram_verification,
       require_email_domain_verification: !!data.event.require_email_domain_verification,
+      enable_entry_gate_flow: !!data.event.enable_entry_gate_flow,
       allowed_email_domains: data.event.allowed_email_domains ?? [],
     });
     setAllowedEmailDomainsInput((data.event.allowed_email_domains ?? []).join('\n'));
@@ -153,6 +166,7 @@ export default function EditEventPage() {
   }, [currentUser?.role]);
 
   const canEdit = currentUser ? currentUser.role !== 'vendor_moderator' : false;
+  const enableEntryGateFlow = !!watch('enable_entry_gate_flow');
 
   const onSubmit = async (values: EventUpdateInput) => {
     if (!canEdit) return;
@@ -162,6 +176,15 @@ export default function EditEventPage() {
       start_at: values.start_at ? new Date(values.start_at).toISOString() : undefined,
       end_at: values.end_at ? new Date(values.end_at).toISOString() : undefined,
       allowed_email_domains: parseAllowedDomains(allowedEmailDomainsInput),
+      entry_gates: entryGates.map((gate, index) => ({
+        id: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(gate.id)
+          ? gate.id
+          : undefined,
+        name: gate.name.trim(),
+        code: (gate.code ?? '').trim(),
+        sort_order: index,
+        is_active: gate.is_active,
+      })),
     };
 
     const res = await fetch(`/api/events/${eventId}`, {
@@ -464,6 +487,102 @@ export default function EditEventPage() {
           />
           {currentUser?.role !== 'admin' && (
             <p className="mt-1 text-xs text-[var(--hh-text-tertiary)]">Only admins can configure allowed email domains.</p>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Enable entry gate flow</label>
+          <div className="flex items-center gap-2 mb-2">
+            <input type="checkbox" className="h-4 w-4" {...register('enable_entry_gate_flow')} disabled={!canEdit || currentUser?.role !== 'admin'} />
+            <span className="text-[var(--hh-text-secondary)] text-sm">Ticket is marked used only after all active gates are scanned.</span>
+          </div>
+          {enableEntryGateFlow && (
+            <div className="space-y-2">
+              {entryGates.map((gate, index) => (
+                <div key={gate.id} className="grid grid-cols-12 gap-2 items-center">
+                  <input
+                    value={gate.name}
+                    onChange={(event) =>
+                      setEntryGates((prev) =>
+                        prev.map((row) =>
+                          row.id === gate.id ? { ...row, name: event.target.value } : row,
+                        ),
+                      )
+                    }
+                    className="hh-input col-span-5"
+                    placeholder={`Gate ${index + 1}`}
+                    disabled={!canEdit || currentUser?.role !== 'admin'}
+                  />
+                  <input
+                    value={gate.code ?? ''}
+                    onChange={(event) =>
+                      setEntryGates((prev) =>
+                        prev.map((row) =>
+                          row.id === gate.id
+                            ? {
+                                ...row,
+                                code: event.target.value
+                                  .toUpperCase()
+                                  .replace(/[^A-Z0-9_-]/g, '')
+                                  .slice(0, 24),
+                              }
+                            : row,
+                        ),
+                      )
+                    }
+                    className="hh-input col-span-3"
+                    placeholder="CODE"
+                    disabled={!canEdit || currentUser?.role !== 'admin'}
+                  />
+                  <label className="col-span-2 flex items-center gap-2 text-xs text-[var(--hh-text-secondary)]">
+                    <input
+                      type="checkbox"
+                      checked={gate.is_active}
+                      onChange={(event) =>
+                        setEntryGates((prev) =>
+                          prev.map((row) =>
+                            row.id === gate.id ? { ...row, is_active: event.target.checked } : row,
+                          ),
+                        )
+                      }
+                      disabled={!canEdit || currentUser?.role !== 'admin'}
+                    />
+                    Active
+                  </label>
+                  <button
+                    type="button"
+                    className="hh-btn-secondary col-span-2 text-xs"
+                    onClick={() =>
+                      setEntryGates((prev) => (prev.length <= 1 ? prev : prev.filter((row) => row.id !== gate.id)))
+                    }
+                    disabled={!canEdit || currentUser?.role !== 'admin' || entryGates.length <= 1}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="hh-btn-secondary text-xs"
+                onClick={() =>
+                  setEntryGates((prev) => [
+                    ...prev,
+                    {
+                      id: `tmp-${Date.now()}-${prev.length}`,
+                      name: `Gate ${prev.length + 1}`,
+                      code: `GATE${prev.length + 1}`,
+                      sort_order: prev.length,
+                      is_active: true,
+                    },
+                  ])
+                }
+                disabled={!canEdit || currentUser?.role !== 'admin'}
+              >
+                Add Gate
+              </button>
+            </div>
+          )}
+          {currentUser?.role !== 'admin' && (
+            <p className="mt-1 text-xs text-[var(--hh-text-tertiary)]">Only admins can configure gate flow.</p>
           )}
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
