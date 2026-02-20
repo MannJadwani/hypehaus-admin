@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import Link from 'next/link';
 
+const SCANNER_EVENT_STORAGE_KEY = 'hypehaus:scanner:selectedEventId';
+const SCANNER_GATE_STORAGE_KEY_PREFIX = 'hypehaus:scanner:selectedGateId:';
+const DEFAULT_GATE_ID = '__default_gate__';
+
 interface TicketData {
   id: string;
   attendee_name: string;
@@ -96,14 +100,8 @@ export default function ScanPage() {
   const [loadingGates, setLoadingGates] = useState(false);
   
   // Refs
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const rafIdRef = useRef<number | null>(null);
-  const scanBusyRef = useRef(false);
-  const lastScanRef = useRef(0);
+  const scanLockRef = useRef(false);
   const canStartScanning = Boolean(selectedEventId && selectedGateId);
 
   const loadScannerEvents = async () => {
@@ -118,8 +116,21 @@ export default function ScanPage() {
     }));
     setEvents(options);
 
-    if (!selectedEventId && options.length > 0) {
-      setSelectedEventId(options[0].id);
+    if (options.length === 0) {
+      setSelectedEventId('');
+      return;
+    }
+
+    const browserStoredEventId =
+      typeof window !== 'undefined' ? window.localStorage.getItem(SCANNER_EVENT_STORAGE_KEY) : null;
+
+    const preferredEventId =
+      [selectedEventId, browserStoredEventId].find((eventId) =>
+        Boolean(eventId && options.some((option) => option.id === eventId)),
+      ) ?? options[0].id;
+
+    if (preferredEventId) {
+      setSelectedEventId(preferredEventId);
     }
   };
 
@@ -149,12 +160,21 @@ export default function ScanPage() {
           setError('Entry gate flow is enabled but no active gates are configured for this event.');
           return;
         }
-        setSelectedGateId((current) =>
-          allGates.some((gate) => gate.id === current) ? current : allGates[0].id,
-        );
+
+        const browserStoredGateId =
+          typeof window !== 'undefined'
+            ? window.localStorage.getItem(`${SCANNER_GATE_STORAGE_KEY_PREFIX}${eventId}`)
+            : null;
+
+        const preferredGateId =
+          [selectedGateId, browserStoredGateId].find((gateId) =>
+            Boolean(gateId && allGates.some((gate) => gate.id === gateId)),
+          ) ?? allGates[0].id;
+
+        setSelectedGateId(preferredGateId);
       } else {
-        setGates([{ id: '__default_gate__', name: 'General Entry', sort_order: 0, is_active: true }]);
-        setSelectedGateId('__default_gate__');
+        setGates([{ id: DEFAULT_GATE_ID, name: 'General Entry', sort_order: 0, is_active: true }]);
+        setSelectedGateId(DEFAULT_GATE_ID);
       }
     } catch (gateError: any) {
       setError(gateError?.message ?? 'Failed to load gate configuration.');
@@ -165,129 +185,113 @@ export default function ScanPage() {
     }
   };
 
+  const getPreferredCamera = async () => {
+    try {
+      const cameras = await Html5Qrcode.getCameras();
+      if (!cameras.length) {
+        return null;
+      }
+
+      const backCamera = cameras.find((camera) => /back|rear|environment/i.test(camera.label));
+      return backCamera ?? cameras[0];
+    } catch {
+      // Some browsers (notably iOS Safari in certain states) may fail camera enumeration.
+      return null;
+    }
+  };
+
+  const cleanupScanner = async () => {
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
+
+    if (scanner) {
+      try {
+        await scanner.stop();
+      } catch {
+        // Scanner might already be stopped.
+      }
+
+      try {
+        await scanner.clear();
+      } catch {
+        // Scanner DOM already removed.
+      }
+    }
+
+    scanLockRef.current = false;
+    setScanning(false);
+  };
+
   const startScanning = async () => {
     try {
       if (!canStartScanning) {
         setError('Select event and gate to start scanning.');
         return;
       }
+
       setError(null);
       setCameraError(null);
       setResult(null);
-      
-      const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+      const isSecure =
+        window.location.protocol === 'https:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1';
       if (!isSecure) {
         throw new Error('Camera access requires HTTPS.');
       }
 
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error('Camera API not available.');
       }
 
+      await cleanupScanner();
       setScanning(true);
 
-      // Wait for render
-      await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-        audio: false,
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
       });
 
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await new Promise<void>((resolve) => {
-          const v = videoRef.current!;
-          if (v.readyState >= 2) resolve();
-          else v.addEventListener('canplay', () => resolve(), { once: true });
-          v.play().catch(() => {});
-        });
-      }
-
-      const scanner = new Html5Qrcode('qr-hidden');
+      const scanner = new Html5Qrcode('qr-reader', false);
       scannerRef.current = scanner;
+      scanLockRef.current = false;
 
-      if (!canvasRef.current || !videoRef.current) return;
+      const preferredCamera = await getPreferredCamera();
+      const cameraConfig = preferredCamera?.id ?? { facingMode: 'environment' };
 
-      const canvas = canvasRef.current;
-      const context = canvas.getContext('2d', { willReadFrequently: true });
-      
-      if (!context) return;
+      await scanner.start(
+        cameraConfig,
+        {
+          fps: 12,
+          qrbox: (viewportWidth, viewportHeight) => {
+            const size = Math.floor(Math.min(viewportWidth, viewportHeight) * 0.7);
+            return { width: size, height: size };
+          },
+          aspectRatio: 1.777778,
+        },
+        (decodedText) => {
+          if (scanLockRef.current) {
+            return;
+          }
 
-      const scanLoop = () => {
-        if (!videoRef.current || !scannerRef.current || !canvas || !context) {
-          rafIdRef.current = requestAnimationFrame(scanLoop);
-          return;
-        }
-
-        const now = performance.now();
-        // Throttle scanning to every 300ms
-        if (scanBusyRef.current || now - lastScanRef.current < 300) {
-          rafIdRef.current = requestAnimationFrame(scanLoop);
-          return;
-        }
-
-        lastScanRef.current = now;
-        scanBusyRef.current = true;
-
-        try {
-            // Draw current frame
-            canvas.width = videoRef.current.videoWidth;
-            canvas.height = videoRef.current.videoHeight;
-          context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-            
-          canvas.toBlob((blob) => {
-            if (!blob || !scannerRef.current) {
-              scanBusyRef.current = false;
-              rafIdRef.current = requestAnimationFrame(scanLoop);
-              return;
-            }
-
-            const file = new File([blob], 'frame.png', { type: 'image/png' });
-                scannerRef.current.scanFile(file, false)
-              .then((decodedText) => {
-                handleScanSuccess(decodedText);
-              })
-                    .catch(() => {
-                         // No QR code found, continue scanning
-                scanBusyRef.current = false;
-                  rafIdRef.current = requestAnimationFrame(scanLoop);
-              });
-          }, 'image/png');
-
-        } catch (e) {
-          scanBusyRef.current = false;
-          rafIdRef.current = requestAnimationFrame(scanLoop);
-        }
-      };
-
-      rafIdRef.current = requestAnimationFrame(scanLoop);
+          scanLockRef.current = true;
+          handleScanSuccess(decodedText).finally(() => {
+            scanLockRef.current = false;
+          });
+        },
+        () => {
+          // Ignore per-frame decode errors.
+        },
+      );
     } catch (err: any) {
       console.error('Camera error:', err);
-      setCameraError(err.message || 'Failed to access camera');
-      setScanning(false);
-      cleanupCamera();
+      setCameraError(err?.message || 'Failed to access camera');
+      await cleanupScanner();
     }
-  };
-
-  const cleanupCamera = () => {
-    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-    if (scannerRef.current) {
-      try { scannerRef.current.clear(); } catch {}
-      scannerRef.current = null;
-    }
-    if (videoRef.current) videoRef.current.srcObject = null;
   };
 
   const stopScanning = async () => {
-    cleanupCamera();
-    setScanning(false);
+    await cleanupScanner();
   };
 
   const handleScanSuccess = async (qrData: string) => {
@@ -306,7 +310,7 @@ export default function ScanPage() {
         body: JSON.stringify({
           qrData,
           eventId: selectedEventId,
-          gateId: selectedGateId === '__default_gate__' ? undefined : selectedGateId,
+          gateId: selectedGateId === DEFAULT_GATE_ID ? undefined : selectedGateId,
         }),
       });
 
@@ -321,6 +325,10 @@ export default function ScanPage() {
           order: data.order,
           event: data.event,
           allTickets: data.allTickets,
+          entryGateFlowEnabled: data.entryGateFlowEnabled,
+          gateScanProgress: data.gateScanProgress,
+          gateScans: data.gateScans,
+          currentGateResult: data.currentGateResult,
         });
         return;
       }
@@ -332,6 +340,10 @@ export default function ScanPage() {
         order: data.order,
         event: data.event,
         allTickets: data.allTickets,
+        entryGateFlowEnabled: data.entryGateFlowEnabled,
+        gateScanProgress: data.gateScanProgress,
+        gateScans: data.gateScans,
+        currentGateResult: data.currentGateResult,
       });
     } catch (err: any) {
       setError(err.message || 'Network error. Please check your connection.');
@@ -354,9 +366,15 @@ export default function ScanPage() {
   const resetScan = () => {
     setResult(null);
     setError(null);
+    setCameraError(null);
     setManualEntry(false);
     setManualQrData('');
     setIsRejecting(false);
+  };
+
+  const handleScanNext = async () => {
+    resetScan();
+    await startScanning();
   };
 
   const handleRejectTicket = async () => {
@@ -406,7 +424,29 @@ export default function ScanPage() {
   }, [selectedEventId]);
 
   useEffect(() => {
-    return () => cleanupCamera();
+    if (typeof window === 'undefined') {
+      return;
+    }
+    if (!selectedEventId) {
+      return;
+    }
+    window.localStorage.setItem(SCANNER_EVENT_STORAGE_KEY, selectedEventId);
+  }, [selectedEventId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    if (!selectedEventId || !selectedGateId || selectedGateId === DEFAULT_GATE_ID) {
+      return;
+    }
+    window.localStorage.setItem(`${SCANNER_GATE_STORAGE_KEY_PREFIX}${selectedEventId}`, selectedGateId);
+  }, [selectedEventId, selectedGateId]);
+
+  useEffect(() => {
+    return () => {
+      void cleanupScanner();
+    };
   }, []);
 
   const formatDate = (dateString: string) => {
@@ -519,6 +559,11 @@ export default function ScanPage() {
                 {error}
              </div>
           )}
+          {cameraError && (
+             <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-300 text-sm">
+                Camera error: {cameraError}
+             </div>
+          )}
         </div>
       )}
 
@@ -526,13 +571,7 @@ export default function ScanPage() {
       {scanning && (
         <div className="fixed inset-0 z-50 bg-black flex flex-col">
           <div className="relative flex-1 overflow-hidden">
-                  <video
-                    ref={videoRef}
-                autoPlay playsInline muted
-                className="absolute inset-0 w-full h-full object-cover"
-                  />
-                  <canvas ref={canvasRef} className="hidden" />
-                  <div id="qr-hidden" className="hidden" />
+            <div id="qr-reader" className="absolute inset-0" />
              
              {/* Overlay */}
              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center p-8">
@@ -633,7 +672,7 @@ export default function ScanPage() {
                              {isRejecting ? 'Rejecting...' : 'Reject Ticket'}
                          </button>
                      )}
-                     <button onClick={resetScan} className={`px-6 py-3 rounded-xl font-semibold transition-transform active:scale-95 ${
+                     <button onClick={handleScanNext} className={`px-6 py-3 rounded-xl font-semibold transition-transform active:scale-95 ${
                           result.success
                           ? 'bg-green-500 text-green-950 hover:bg-green-400'
                           : 'bg-red-500 text-white hover:bg-red-400'
@@ -769,6 +808,24 @@ export default function ScanPage() {
           10% { opacity: 1; }
           90% { opacity: 1; }
           100% { top: 100%; opacity: 0; }
+        }
+
+        #qr-reader {
+          width: 100%;
+          height: 100%;
+          border: none !important;
+          background: #000;
+        }
+
+        #qr-reader > div {
+          width: 100%;
+          height: 100%;
+        }
+
+        #qr-reader video {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: cover !important;
         }
       `}</style>
     </div>
